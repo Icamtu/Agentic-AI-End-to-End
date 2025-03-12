@@ -6,7 +6,8 @@ LangGraphProject is an end-to-end agentic AI project designed to demonstrate the
 
 ## Features
 
-- **Natural Language Processing (NLP):** Utilize advanced NLP techniques to understand and process human language.
+- **Basic Chatbot:** Develop a conversational interface to handle basic inquiries.
+- **Chatbot with Tools:** Integrate various tools and APIs to extend chatbot functionalities.
 - **Graph-Based Data Structures:** Implement and manipulate graph data structures to represent relationships and connections.
 - **Autonomous Agents:** Develop AI agents capable of performing tasks without human intervention.
 - **End-to-End Pipeline:** Showcase a complete workflow from data ingestion to insight generation.
@@ -16,8 +17,8 @@ LangGraphProject is an end-to-end agentic AI project designed to demonstrate the
 To get started with LangGraphProject, clone the repository and install the necessary dependencies:
 
 ```bash
-git clone https://github.com/yourusername/LangGraphProject.git
-cd LangGraphProject
+git clone https://github.com/Icamtu/Agentic-AI-End-to-End.git
+cd Agentic-AI-End-to-End
 pip install -r requirements.txt
 ```
 
@@ -39,4 +40,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For any questions or inquiries, please contact us at [email@example.com](mailto:email@example.com).
+For any questions or inquiries, please contact me at [kamaleswarmohanta@outlook.com](mailto:kamaleswarmohanta@outlook.com).
