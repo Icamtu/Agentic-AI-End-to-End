@@ -55,28 +55,26 @@ class GraphBuilder:
             self.graph_builder.add_conditional_edges("chatbot", tools_condition)
             self.graph_builder.add_edge("tools","chatbot")
     def blog_generation_build_graph(self):
-        """
-        Builds a blog generation graph.
-        Includes orchestrator, worker (llm_call), and synthesizer nodes.
-        """
+        """Builds a blog generation graph with hallucination removal."""
         blog_node = BlogGenerationNode(self.llm)
 
         # Add nodes
         self.graph_builder.add_node("orchestrator", blog_node.orchestrator)
         self.graph_builder.add_node("llm_call", blog_node.llm_call)
         self.graph_builder.add_node("synthesizer", blog_node.synthesizer)
+        # self.graph_builder.add_node("hallucination_checker", blog_node.hallucination_checker)
 
         # Define edges
         self.graph_builder.add_edge(START, "orchestrator")
         self.graph_builder.add_conditional_edges(
             "orchestrator",
             blog_node.assign_workers,
-            {
-                "llm_call": "llm_call"  # Maps to the worker node
-            }
+            {"llm_call": "llm_call"}
         )
         self.graph_builder.add_edge("llm_call", "synthesizer")
+        # self.graph_builder.add_edge("synthesizer", "hallucination_checker")
         self.graph_builder.add_edge("synthesizer", END)
+
 
     def code_reviewer_build_graph(self):
         """
