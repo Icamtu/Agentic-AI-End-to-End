@@ -38,3 +38,35 @@ class DisplayResultStreamlit:
                 elif type(message)==AIMessage and message.content:
                     with st.chat_message("assistant"):
                         st.write(message.content)
+        elif usecase == "Blog Generation":
+            # Prepare state and invoke the graph for blog generation
+            initial_state = {
+                "messages": [HumanMessage(content=user_message)],
+                "topic": user_message,  # Assume user_message is the topic
+                "sections": [],
+                "completed_sections": [],
+                "final_report": ""
+            }
+            res = graph.invoke(initial_state)
+            with st.chat_message("user"):
+                st.write(f"Blog topic: {user_message}")
+            with st.chat_message("assistant"):
+                st.markdown("### Generated Blog")
+                st.markdown(res["final_report"])  # Display the final report in markdown
+
+        elif usecase == "Coding Peer Review":
+            # Prepare state and invoke the graph for code review
+            initial_state = {
+                "messages": [HumanMessage(content="Review this code")],
+                "code_input": user_message,  # Assume user_message is the code
+                "review_output": ""
+            }
+            res = graph.invoke(initial_state)
+            with st.chat_message("user"):
+                st.code(user_message, language="python")  # Display code in a code block
+            with st.chat_message("assistant"):
+                st.markdown("### Code Review Feedback")
+                st.markdown(res["review_output"])  # Display review in markdown
+
+        else:
+            st.error(f"Unknown use case: {usecase}")

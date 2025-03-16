@@ -5,6 +5,8 @@ from src.langgraphagenticai.state.state import State
 from src.langgraphagenticai.nodes.basic_chatbot_node import BasicChatbotNode
 from src.langgraphagenticai.nodes.chatbot_with_Tool_node import ChatbotWithToolNode
 from  src.langgraphagenticai.tools.search_tool import get_tools, create_tool_nodes
+from src.langgraphagenticai.nodes.blog_generation_node import BlogGenerationNode
+from src.langgraphagenticai.nodes.code_peer_review_node import CodeReviewerNode
 
 class GraphBuilder:
 
@@ -52,6 +54,41 @@ class GraphBuilder:
             self.graph_builder.add_edge(START,"chatbot")
             self.graph_builder.add_conditional_edges("chatbot", tools_condition)
             self.graph_builder.add_edge("tools","chatbot")
+    def blog_generation_build_graph(self):
+        """
+        Builds a blog generation graph.
+        Includes orchestrator, worker (llm_call), and synthesizer nodes.
+        """
+        blog_node = BlogGenerationNode(self.llm)
+
+        # Add nodes
+        self.graph_builder.add_node("orchestrator", blog_node.orchestrator)
+        self.graph_builder.add_node("llm_call", blog_node.llm_call)
+        self.graph_builder.add_node("synthesizer", blog_node.synthesizer)
+
+        # Define edges
+        self.graph_builder.add_edge(START, "orchestrator")
+        self.graph_builder.add_conditional_edges(
+            "orchestrator",
+            blog_node.assign_workers,
+            {
+                "llm_call": "llm_call"  # Maps to the worker node
+            }
+        )
+        self.graph_builder.add_edge("llm_call", "synthesizer")
+        self.graph_builder.add_edge("synthesizer", END)
+
+    def code_reviewer_build_graph(self):
+        """
+        Builds a code reviewer graph.
+        Includes a single node to review code and output feedback.
+        """
+        code_reviewer_node = CodeReviewerNode(self.llm)
+        self.graph_builder.add_node("reviewer", code_reviewer_node.review_code)
+        self.graph_builder.add_edge(START, "reviewer")
+        self.graph_builder.add_edge("reviewer", END)
+
+   
 
     def setup_graph(self,usecase: str):
         """
@@ -61,4 +98,10 @@ class GraphBuilder:
             self.basic_chatbot_build_graph()
         elif usecase == "Chatbot with Tool":
             self.chatbot_with_tools_build_graph()
+        elif usecase == "Blog Generation":
+            self.blog_generation_build_graph()
+        elif usecase == "Coding Peer Review":
+            self.code_reviewer_build_graph()
+        else:
+            raise ValueError(f"Unknown use case: {usecase}")
         return self.graph_builder.compile()
