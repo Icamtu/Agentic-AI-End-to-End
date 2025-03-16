@@ -46,15 +46,15 @@ class LoadStreamlitUI:
             dot.node("orchestrator", "Orchestrator")
             dot.node("llm_call", "LLM Call (Workers)")
             dot.node("synthesizer", "Synthesizer")
-            dot.node("hallucination_checker", "Hallucination Checker")  # Added new node
             dot.node("END", "END")
             dot.edges([
                 ("START", "orchestrator"),
                 ("llm_call", "synthesizer"),
-                ("synthesizer", "hallucination_checker"),
-                ("hallucination_checker", "END")
+                ("synthesizer", "END"),
+                
             ])
             dot.edge("orchestrator", "llm_call", label="parallel", style="dashed")
+            dot.edge("llm_call", "synthesizer", label="parallel", style="dashed")
         elif usecase == "Coding Peer Review":
             dot.node("START", "START")
             dot.node("reviewer", "Reviewer")

@@ -5,7 +5,7 @@ def get_tools():
     """
     Returns a list of tools to be used in chatbot.
     """
-    tools = [TavilySearchResults(max_results=2)]
+    tools = [TavilySearchResults(max_results=5)]
 
     return tools
 
