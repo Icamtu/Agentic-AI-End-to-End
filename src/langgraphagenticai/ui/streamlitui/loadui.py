@@ -38,13 +38,14 @@ class LoadStreamlitUI:
             dot.node("chatbot", "Chatbot")
             dot.node("tools", "Tools")
             dot.node("END", "END")
-            dot.edges([("START", "chatbot"), ("chatbot", "tools"), ("tools", "END")])
-            dot.edge("chatbot", "chatbot", label="conditional", style="dashed")
+            dot.edges([("START", "chatbot"), ("chatbot", "END")])
+            dot.edge("chatbot", "tools", label="conditional", style="dashed")
+            dot.edge("tools", "chatbot",  style="dashed")
         elif usecase == "Blog Generation":
             dot.node("START", "START")
             dot.node("orchestrator", "Orchestrator")
             dot.node("llm_call", "LLM Call (Workers)")
-            dot.node("synthesizer", "Synthesizer")
+            dot.node("synthesizer", "Synthesizer")  
             dot.node("END", "END")
             dot.edges([
                 ("START", "orchestrator"),
