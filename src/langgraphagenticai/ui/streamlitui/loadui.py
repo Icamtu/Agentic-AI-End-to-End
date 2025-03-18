@@ -38,7 +38,7 @@ class LoadStreamlitUI:
             dot.node("chatbot", "Chatbot")
             dot.node("tools", "Tools")
             dot.node("END", "END")
-            dot.edges([("START", "chatbot"), ("chatbot", "tools"), ("tools", "chatbot")])
+            dot.edges([("START", "chatbot"), ("chatbot", "tools"), ("tools", "END")])
             dot.edge("chatbot", "chatbot", label="conditional", style="dashed")
         elif usecase == "Blog Generation":
             dot.node("START", "START")
