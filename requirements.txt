@@ -4,6 +4,9 @@ langchain_community
 langchain_core
 langchain_groq
 langchain_openai
+langchain_google_genai
+langchain_huggingface 
+langchain_xai
 faiss-cpu
 streamlit
 graphviz

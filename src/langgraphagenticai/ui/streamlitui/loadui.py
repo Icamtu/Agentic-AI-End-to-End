@@ -1,11 +1,10 @@
-# loadui.py
 import streamlit as st
 import os
 from datetime import date
 import graphviz
 from langchain_core.messages import AIMessage, HumanMessage
 from src.langgraphagenticai.ui.uiconfigfile import Config
-from src.langgraphagenticai.graph.graph_builder import GraphBuilder  # Fixed import path
+from src.langgraphagenticai.graph.graph_builder import GraphBuilder  
 
 class LoadStreamlitUI:
     def __init__(self):
@@ -87,7 +86,7 @@ class LoadStreamlitUI:
             usecase_options = self.config.get_usecase_options()
 
             self.user_controls["selected_llm"] = st.selectbox(
-                "Select LLM", llm_options, help="Choose the language model to use."
+                "Select LLM", llm_options, help="Choose the language model provider to use."
             )
 
             if self.user_controls["selected_llm"] == "Groq":
@@ -104,6 +103,37 @@ class LoadStreamlitUI:
                 st.session_state["GROQ_API_KEY"] = self.user_controls["GROQ_API_KEY"]
                 if not self.user_controls["GROQ_API_KEY"]:
                     st.warning("⚠️ Please enter your GROQ API key to proceed.")
+            elif self.user_controls["selected_llm"] == "Google":
+                model_options = self.config.get_google_model_options()
+                self.user_controls["selected_google_genai_model"] = st.selectbox(
+                    "Select Model", model_options, help="Choose a specific Google GenAI model."
+                )
+                self.user_controls["GOOGLE_API_KEY"] = st.text_input(
+                    "Google API Key",
+                    type="password",
+                    value=st.session_state.get("GOOGLE_API_KEY", ""),
+                    help="Enter your Google API key (see https://console.cloud.google.com/apis/credentials)."
+                )
+                st.session_state["GOOGLE_API_KEY"] = self.user_controls["GOOGLE_API_KEY"]
+                if not self.user_controls["GOOGLE_API_KEY"]:
+                    st.warning("⚠️ Please enter your Google API key to proceed.")
+            
+            elif self.user_controls["selected_llm"] == "OpenAI":
+                model_options = self.config.get_openai_model_options()
+                self.user_controls["selected_openai_model"] = st.selectbox(
+                    "Select Model", model_options, help="Choose a specific OpenAI model."
+                )
+                self.user_controls["OPENAI_API_KEY"] = st.text_input(
+                    "OpenAI API Key",
+                    type="password",
+                    value=st.session_state.get("OPENAI_API_KEY", ""),
+                    help="Enter your OpenAI API key (see https://platform.openai.com/account/api-keys)."
+                )
+                st.session_state["OPENAI_API_KEY"] = self.user_controls["OPENAI_API_KEY"]
+                if not self.user_controls["OPENAI_API_KEY"]:
+                    st.warning("⚠️ Please enter your OpenAI API key to proceed.")
+
+
 
             self.user_controls["selected_usecase"] = st.selectbox(
                 "Select Use Case", usecase_options, help="Choose the application use case."
