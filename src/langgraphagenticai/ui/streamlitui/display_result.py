@@ -1,72 +1,57 @@
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-import json
 
 class DisplayResultStreamlit:
-    def __init__(self,usecase,graph,user_message):
-        self.usecase= usecase
-        self.graph= graph
-        self.user_message=user_message
+    def __init__(self, usecase, graph, user_message, response=None):
+        self.usecase = usecase
+        self.graph = graph
+        self.user_message = user_message
+        self.response = response
     
     def display_result_on_ui(self):
-        usecase= self.usecase
-        graph = self.graph
-        user_message = self.user_message
-        if usecase =="Basic Chatbot":
-                for event in graph.stream({'messages':("user",user_message)}):
-                    print(event.values())
-                    for value in event.values():
-                        print(value['messages'])
-                        with st.chat_message("user"):
-                            st.write(user_message)
-                        with st.chat_message("assistant"):
-                            st.write(value["messages"].content)
-    
-        elif usecase=="Chatbot with Tool":
-             # Prepare state and invoke the graph
-            initial_state = {"messages": [user_message]}
-            res = graph.invoke(initial_state)
-            for message in res['messages']:
-                if type(message) == HumanMessage:
-                    with st.chat_message("user"):
-                        st.write(message.content)
-                elif type(message)==ToolMessage:
-                    with st.chat_message("ai"):
-                        st.write("Tool Call Start")
-                        st.write(message.content)
-                        st.write("Tool Call End")
-                elif type(message)==AIMessage and message.content:
-                    with st.chat_message("assistant"):
-                        st.write(message.content)
+        """Display the latest assistant response from the graph and return it."""
+        usecase = self.usecase
+        response = self.response
+
+        if not response:
+            st.error("No response provided to display.")
+            return "Error: No response"
+
+        if usecase == "Basic Chatbot":
+            assistant_response = response["messages"][-1].content if response["messages"] else "No response"
+            st.markdown(assistant_response)
+            return assistant_response
+
+        elif usecase == "Chatbot with Tool":
+            # Display only the latest relevant message
+            last_message = response["messages"][-1]
+            if isinstance(last_message, ToolMessage):
+                st.write("Tool Call Start")
+                st.write(last_message.content)
+                st.write("Tool Call End")
+                assistant_response = last_message.content
+            elif isinstance(last_message, AIMessage) and last_message.content:
+                st.write(last_message.content)
+                assistant_response = last_message.content
+            else:
+                assistant_response = "No response"
+            return assistant_response
+
         elif usecase == "Blog Generation":
-            # Prepare state and invoke the graph for blog generation
-            initial_state = {
-                "messages": [HumanMessage(content=user_message)],
-                "topic": user_message,  # Assume user_message is the topic
-                "sections": [],
-                "completed_sections": [],
-                "final_report": ""
-            }
-            res = graph.invoke(initial_state)
-            with st.chat_message("user"):
-                st.write(f"Blog topic: {user_message}")
-            with st.chat_message("assistant"):
-                st.markdown("### Generated Blog")
-                st.markdown(res["final_report"])  # Display the final report in markdown
+            assistant_response = response.get("final_report", "No blog generated")
+            st.markdown("### Generated Blog")
+            st.markdown(assistant_response)
+            return assistant_response
 
         elif usecase == "Coding Peer Review":
-            # Prepare state and invoke the graph for code review
-            initial_state = {
-                "messages": [HumanMessage(content="Review this code")],
-                "code_input": user_message,  # Assume user_message is the code
-                "review_output": ""
-            }
-            res = graph.invoke(initial_state)
-            with st.chat_message("user"):
-                st.code(user_message, language="python")  # Display code in a code block
-            with st.chat_message("assistant"):
-                st.markdown("### Code Review Feedback")
-                st.markdown(res["review_output"])  # Display review in markdown
+            feedback = response.get("review_output", "No review generated")
+            corrected_code = response.get("corrected_code", "No corrected code provided")
+            st.markdown("### Code Review Feedback")
+            st.markdown(feedback)
+            st.markdown("### Corrected Code")
+            st.markdown(corrected_code)
+            return feedback + "\n\n" + corrected_code  # Combined for history
 
         else:
             st.error(f"Unknown use case: {usecase}")
+            return "Error: Unknown use case"
