@@ -39,7 +39,7 @@ class DisplayResultStreamlit:
 
         elif usecase == "Blog Generation":
             assistant_response = response.get("final_report", "No blog generated")
-            st.markdown("### Generated Blog")
+            st.markdown(f"### Generated Blog for {self.user_message}")
             st.markdown(assistant_response)
             return assistant_response
 
