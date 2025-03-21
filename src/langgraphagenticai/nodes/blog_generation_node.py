@@ -154,6 +154,7 @@ class BlogGenerationNode:
         completed_sections = []
         final_draft = []
         
+        # Format each section with consistent styling
         for section in state["sections"]:
             prompt_inputs = {
                 "name": section['name'],
@@ -164,28 +165,23 @@ class BlogGenerationNode:
             logger.info(f"Draft prompt messages: {messages}")
             try:
                 content = self.llm.invoke(messages).content
-                if not content.startswith(f"## {section['name']}"):
-                    content = f"## {section['name']}\n{content}"
-                completed_sections.append(content)
-                final_draft.append(content)
+                # Ensure consistent section formatting
+                section_content = self._format_section_content(section['name'], content)
+                completed_sections.append(section_content)
+                final_draft.append(section_content)
             except Exception as e:
                 logger.error(f"Failed to generate section {section['name']}: {e}")
                 error_content = f"## {section['name']}\nError: {e}"
                 completed_sections.append(error_content)
                 final_draft.append(error_content)
         
-        # Join all sections with clear separation
-        draft = "\n\n---\n\n".join(final_draft)
+        # Join sections with clear separation and formatting
+        draft = "\n\n".join(final_draft)
         
-        # Create a formatted display version
-        display_content = (
-            "# Generated Blog Draft\n\n"
-            f"{draft}\n\n"
-            "---\n"
-            "Please review the draft with the buttons below."
-        )
+        # Create a formatted display version with consistent styling
+        display_content = self._format_display_content(draft)
         
-        # Update state with both raw sections and formatted message
+        # Update state
         state["completed_sections"] = completed_sections
         state["messages"].append(AIMessage(content=display_content))
         
@@ -195,6 +191,38 @@ class BlogGenerationNode:
             "draft_content": draft,
             "needs_facts": False
         }
+
+    def _format_section_content(self, section_name: str, content: str) -> str:
+        """Format a single section with consistent styling."""
+        # Clean up the content
+        content = content.strip()
+        
+        # Ensure section starts with proper heading
+        if not content.startswith(f"## {section_name}"):
+            content = f"## {section_name}\n\n{content}"
+        
+        # Format paragraphs with proper spacing
+        paragraphs = content.split("\n\n")
+        formatted_paragraphs = []
+        
+        for para in paragraphs:
+            # Clean up paragraph
+            para = para.strip()
+            if para.startswith("#"):  # It's a heading
+                formatted_paragraphs.append(para)
+            else:  # It's a regular paragraph
+                formatted_paragraphs.append(para)
+        
+        return "\n\n".join(formatted_paragraphs)
+
+    def _format_display_content(self, draft: str) -> str:
+        """Format the complete draft for display."""
+        return (
+            "# Generated Blog Draft\n\n"
+            f"{draft}\n\n"
+            "---\n\n"
+            "Please review the draft with the buttons below."
+        )
 
     def draft_review(self, state: State) -> dict:
         """Handle human review of the draft (Draft Review-Human, Node E)."""

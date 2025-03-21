@@ -40,7 +40,6 @@ class ChatbotWithToolNode:
                     logger.info(f"Tool call made: {response.tool_calls}")
                     for tool_call in response.tool_calls:
                         if tool_call.get('name') == "tavily_search_results_json":
-                            # Execute tool with proper arguments
                             tool_args = tool_call.get('args', {})
                             search_query = tool_args.get('query', '')
                             
@@ -48,17 +47,57 @@ class ChatbotWithToolNode:
                             tavily_tool = next((t for t in tools if t.__class__.__name__ == 'TavilySearchResults'), None)
                             if tavily_tool:
                                 search_results = tavily_tool(search_query)
-                                state["messages"].append(AIMessage(content=f"Search results: {search_results}"))
+                                # Format search results in a clean markdown structure
+                                formatted_results = self._format_search_results(search_results)
+                                state["messages"].append(AIMessage(content=formatted_results))
                                 # Get final response with search results
                                 final_response = llm_with_tools.invoke(state["messages"])
                                 response = final_response
-                
-                state["messages"].append(response if isinstance(response, AIMessage) else AIMessage(content=str(response)))
+
+                # Format the final response content
+                formatted_response = self._format_response_content(response)
+                state["messages"].append(AIMessage(content=formatted_response))
                 
             except Exception as e:
                 logger.error(f"Error processing message: {str(e)}")
                 state["messages"].append(AIMessage(content="I apologize, but I encountered an error processing your request. Please try again."))
             
             return state
-        
+
         return chatbot_node
+
+    def _format_search_results(self, results):
+        """Format search results in a clean markdown structure."""
+        if not results:
+            return "No search results found."
+            
+        formatted = "### Search Results\n\n"
+        for i, result in enumerate(results, 1):
+            if isinstance(result, dict):
+                title = result.get('title', 'Untitled')
+                content = result.get('content', '').strip()
+                formatted += f"**{i}. {title}**\n{content}\n\n"
+        return formatted
+
+    def _format_response_content(self, response):
+        """Format the response content with proper markdown structure."""
+        if not hasattr(response, 'content'):
+            return str(response)
+            
+        content = response.content
+        
+        # If content contains section headers, ensure proper formatting
+        if "# " in content or "## " in content:
+            # Ensure consistent header formatting
+            lines = content.split('\n')
+            formatted_lines = []
+            for line in lines:
+                # Fix section headers
+                if line.strip().startswith('#'):
+                    line = line.strip()
+                    if not line.startswith('# ') and not line.startswith('## '):
+                        line = f"## {line.lstrip('#').strip()}"
+                formatted_lines.append(line)
+            content = '\n\n'.join(formatted_lines)
+        
+        return content.strip()
