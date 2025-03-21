@@ -1,5 +1,6 @@
 # src/langgraphagenticai/state/state.py
-from typing import TypedDict, List, Dict, Optional
+from typing import List, Dict, Optional
+from typing_extensions import TypedDict
 from langchain_core.messages import BaseMessage
 
 class Section(TypedDict):
