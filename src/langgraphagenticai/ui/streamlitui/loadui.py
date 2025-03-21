@@ -43,28 +43,28 @@ class LoadStreamlitUI:
             dot.edge("tools", "chatbot",  style="dashed")
 
         elif usecase == "Blog Generation":
-                dot.node("S", "START")
-                dot.node("A", "User Input",shape="rectangle")
-                dot.node("B", "Outline Generator-LLM",shape="rectangle")
-                dot.node("C", "Outline Review-Human",shape="rectangle")
-                dot.node("D", "Draft Generator-LLM",shape="rectangle")
-                dot.node("E", "Draft Review-Human",shape="rectangle")
-                dot.node("I", "Web Search/Scraping",shape="rectangle")
-                dot.node("F", "Revision Generator-LLM",shape="rectangle")
-                dot.node("G", "END")
-
-                # Edges (Flow between nodes)
-                dot.edge("S", "A")
-                dot.edge("A", "B")
-                dot.edge("B", "C", label="Generated Outline")
-                dot.edge("C", "D")
-                dot.edge("C", "B", label="Edited Outline")  # Human feedback loop for Outline
-                dot.edge("D", "E")
-                dot.edge("D", "I", label="Needs Facts")  # If draft needs more facts, search
-                dot.edge("I", "D", label="Relevant Info")  # Enrich draft with factual data
-                dot.edge("E", "G")  # If approved, go to END
-                dot.edge("E", "F", label="Feedback")
-                dot.edge("F", "E", label="Refined Draft")  # Loopback for feedback updates
+            dot.node("S", "START", shape="ellipse", style="filled", fillcolor="lightgray")
+            dot.node("G", "END", shape="ellipse", style="filled", fillcolor="lightgray")
+            dot.node("A", "User Input", shape="rectangle")
+            dot.node("B", "Outline Generator-LLM", shape="rectangle")
+            dot.node("C", "Outline Review-Human", shape="rectangle")
+            dot.node("D", "Draft Generator-LLM", shape="rectangle")
+            dot.node("E", "Draft Review-Human", shape="rectangle")
+            dot.node("I", "Web Search/Scraping", shape="rectangle")
+            dot.node("F", "Revision Generator-LLM", shape="rectangle")
+            
+            # Edges
+            dot.edge("S", "A")
+            dot.edge("A", "B")
+            dot.edge("B", "C", label="Generated Outline")
+            dot.edge("C", "D")
+            dot.edge("C", "B", label="Edited Outline")  # Human feedback loop for Outline
+            dot.edge("D", "E")
+            dot.edge("D", "I", label="Needs Facts")  # If draft needs more facts, search
+            dot.edge("I", "D", label="Relevant Info")  # Enrich draft with factual data
+            dot.edge("E", "G")  # If approved, go to END
+            dot.edge("E", "F", label="Feedback")
+            dot.edge("F", "E", label="Refined Draft")  # Loopback for feedback updates
 
         elif usecase == "Coding Peer Review":
             dot.node("START", "START")
@@ -160,7 +160,7 @@ class LoadStreamlitUI:
                 )
                 os.environ["TAVILY_API_KEY"] = self.user_controls["TAVILY_API_KEY"]
                 st.session_state["TAVILY_API_KEY"] = self.user_controls["TAVILY_API_KEY"]
-                if not self.user_controls["TAVILY_API_KEY"]:
+                if not self.user_controls["TAVILY_API_KEY"] and self.user_controls["selected_usecase"] in ["Chatbot with Tool", "Blog Generation"]:
                     st.warning("⚠️ Please enter your Tavily API key to proceed.")
 
             # Reset button

@@ -1,105 +1,152 @@
-from langgraph.graph import StateGraph, END, MessagesState, START
-from langgraph.prebuilt import tools_condition, ToolNode
-from langchain_core.prompts import ChatPromptTemplate
-from src.langgraphagenticai.state.state import State
+# src/langgraphagenticai/graph/graph_builder.py
+from langgraph.graph import StateGraph, START, END
+from src.langgraphagenticai.nodes.blog_generation_node import BlogGenerationNode
 from src.langgraphagenticai.nodes.basic_chatbot_node import BasicChatbotNode
 from src.langgraphagenticai.nodes.chatbot_with_Tool_node import ChatbotWithToolNode
-from  src.langgraphagenticai.tools.search_tool import get_tools, create_tool_nodes
-from src.langgraphagenticai.nodes.blog_generation_node import BlogGenerationNode
-from src.langgraphagenticai.nodes.code_peer_review_node import CodeReviewerNode
+from src.langgraphagenticai.tools.search_tool import get_tools, create_tool_nodes
+from src.langgraphagenticai.state.state import State
+from langgraph.checkpoint.memory import MemorySaver
+from pydantic import BaseModel, Field
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ReviewFeedback(BaseModel):
+    approved: bool = Field(description="Approval status: True for approved, False for rejected")
+    comments: str = Field(description="Reviewer comments")
 
 class GraphBuilder:
-
-    def __init__(self,model):
-        self.llm=model
-        self.graph_builder=StateGraph(State)
+    def __init__(self, llm):
+        self.llm = llm
+        self.memory = MemorySaver()
 
     def basic_chatbot_build_graph(self):
         """
-        Builds a basic chatbot graph using Langgraph.
-        This method initializes a chatbot node using the 'BasicChatbotNode' class
-        and integrate it into the graph. The chatbot node is set as both the
-        entry and exit point of the graph.
+        Builds a graph for the Basic Chatbot use case.
         """
-        self.basic_chatbot_node=BasicChatbotNode(self.llm)
-        self.graph_builder.add_node("chatbot",self.basic_chatbot_node.process)
-        self.graph_builder.add_edge(START,"chatbot")
-        self.graph_builder.add_edge("chatbot",END)
-    
-    def chatbot_with_tools_build_graph(self):
-            """
-            Builds an advanced chatbot graph with tool integration.
-            This method creates a chatbot graph that includes both a chatbot node 
-            and a tool node. It defines tools, initializes the chatbot with tool 
-            capabilities, and sets up conditional and direct edges between nodes. 
-            The chatbot node is set as the entry point.
-            """
-            ## Define the tool and tool node
+        graph_builder = StateGraph(state_schema=State)
+        basic_chatbot_node = BasicChatbotNode(self.llm)
+        graph_builder.add_node("chatbot", basic_chatbot_node.create_chatbot())
+        graph_builder.add_edge(START, "chatbot")
+        graph_builder.add_edge("chatbot", END)
+        return graph_builder.compile(checkpointer=self.memory)
 
-            tools=get_tools()
-            tool_node=create_tool_nodes(tools)
-
-            ##Define LLM
-            llm = self.llm
-
-            # Define chatbot node
-            obj_chatbot_with_node = ChatbotWithToolNode(llm)
-            chatbot_node = obj_chatbot_with_node.create_chatbot(tools)
-
-            # Add nodes
-            self.graph_builder.add_node("chatbot", chatbot_node)
-            self.graph_builder.add_node("tools", tool_node)
-
-            # Define conditional and direct edges
-            self.graph_builder.add_edge(START,"chatbot")
-            self.graph_builder.add_conditional_edges("chatbot", tools_condition)
-            self.graph_builder.add_edge("tools","chatbot")
-    def blog_generation_build_graph(self):
-        """Builds a blog generation graph with hallucination removal."""
-        blog_node = BlogGenerationNode(self.llm)
-
-        # Add nodes
-        self.graph_builder.add_node("orchestrator", blog_node.orchestrator)
-        self.graph_builder.add_node("llm_call", blog_node.llm_call)
-        self.graph_builder.add_node("synthesizer", blog_node.synthesizer)
-        # self.graph_builder.add_node("hallucination_checker", blog_node.hallucination_checker)
-
-        # Define edges
-        self.graph_builder.add_edge(START, "orchestrator")
-        self.graph_builder.add_conditional_edges(
-            "orchestrator",
-            blog_node.assign_workers,
-            {"llm_call": "llm_call"}
+    def chatbot_with_tool_build_graph(self):
+        """
+        Builds a graph for the Chatbot with Tool use case.
+        """
+        graph_builder = StateGraph(state_schema=State)
+        chatbot_with_tool_node = ChatbotWithToolNode(self.llm)
+        tools = get_tools()
+        graph_builder.add_node("chatbot", chatbot_with_tool_node.create_chatbot(tools))
+        graph_builder.add_node("tools", create_tool_nodes(tools))
+        graph_builder.add_edge(START, "chatbot")
+        graph_builder.add_conditional_edges(
+            "chatbot",
+            lambda state: "tools" if state["messages"][-1].tool_calls else END,
+            {"tools": "tools", END: END}
         )
-        self.graph_builder.add_edge("llm_call", "synthesizer")
-        # self.graph_builder.add_edge("synthesizer", "hallucination_checker")
-        self.graph_builder.add_edge("synthesizer", END)
+        graph_builder.add_edge("tools", "chatbot")
+        return graph_builder.compile(checkpointer=self.memory)
 
-
-    def code_reviewer_build_graph(self):
+    def blog_generation_build_graph(self):
         """
-        Builds a code reviewer graph.
-        Includes a single node to review code and output feedback.
+        Builds a graph for the Blog Generation use case with button-based feedback.
         """
-        code_reviewer_node = CodeReviewerNode(self.llm)
-        self.graph_builder.add_node("reviewer", code_reviewer_node.review_code)
-        self.graph_builder.add_edge(START, "reviewer")
-        self.graph_builder.add_edge("reviewer", END)
+        try:
+            if not self.llm:
+                raise ValueError("LLM model not initialized")
 
-   
+            # Add structure validation helper
+            def validate_and_standardize_structure(structure: str) -> list:
+                if not structure or structure.strip() == "":
+                    return ["Introduction", "Main Content", "Conclusion"]
+                sections = [s.strip().capitalize() for s in structure.split(",")]
+                if len(sections) < 1:
+                    return ["Introduction", "Main Content", "Conclusion"]
+                return sections
 
-    def setup_graph(self,usecase: str):
+            graph_builder = StateGraph(state_schema=State)
+            blog_node = BlogGenerationNode(self.llm)
+            
+            # Modify user_input node to include structure validation
+            def user_input_with_validation(state: State) -> dict:
+                result = blog_node.user_input(state)
+                raw_structure = result.get("structure", "")
+                result["structure"] = ", ".join(validate_and_standardize_structure(raw_structure))
+                logger.info(f"Validated structure: {result['structure']}")
+                return result
+
+            # Add nodes with validated user input
+            graph_builder.add_node("user_input", user_input_with_validation)
+            graph_builder.add_node("outline_generator", blog_node.outline_generator)
+            graph_builder.add_node("outline_review", blog_node.outline_review)
+            graph_builder.add_node("draft_generator", blog_node.draft_generator)
+            graph_builder.add_node("draft_review", blog_node.draft_review)
+            graph_builder.add_node("web_search", blog_node.web_search)
+            graph_builder.add_node("revision_generator", blog_node.revision_generator)
+
+            # Define edges
+            graph_builder.add_edge(START, "user_input")
+            graph_builder.add_edge("user_input", "outline_generator")
+            graph_builder.add_edge("outline_generator", "outline_review")
+            
+            # Conditional edge for outline review based on button feedback
+            def determine_outline_review(state):
+                if not state:
+                    logger.error("Invalid state provided")
+                    return "outline_review"
+                feedback = state.get("outline_feedback", "")
+                if not feedback:  # No feedback yet, stay at review
+                    return "outline_review"
+                return "draft_generator" if feedback == "approved" else "outline_generator"
+
+            graph_builder.add_conditional_edges(
+                "outline_review",
+                determine_outline_review,
+                {"outline_review": "outline_review", "outline_generator": "outline_generator", "draft_generator": "draft_generator"}
+            )
+
+            # Draft generator conditional edge for web search
+            graph_builder.add_conditional_edges(
+                "draft_generator",
+                lambda state: "web_search" if state.get("needs_facts", False) else "draft_review",
+                {"web_search": "web_search", "draft_review": "draft_review"}
+            )
+            graph_builder.add_edge("web_search", "draft_generator")
+            
+            # Conditional edge for draft review based on button feedback
+            def determine_draft_review(state):
+                if not state:
+                    logger.error("Invalid state provided")
+                    return "draft_review"
+                feedback = state.get("draft_feedback", "")
+                if not feedback:  # No feedback yet, stay at review
+                    return "draft_review"
+                return END if feedback == "approved" else "revision_generator"
+
+            graph_builder.add_conditional_edges(
+                "draft_review",
+                determine_draft_review,
+                {"draft_review": "draft_review", "revision_generator": "revision_generator", END: END}
+            )
+            graph_builder.add_edge("revision_generator", "draft_review")
+
+            # Compile with interrupts at review nodes
+            return graph_builder.compile(interrupt_before=["outline_review", "draft_review"], checkpointer=self.memory)
+        except Exception as e:
+            logger.error(f"Error building blog generation graph: {e}")
+            return None
+
+    def setup_graph(self, usecase):
         """
-        Sets up the graph for the selected use case.
+        Sets up the appropriate graph based on the selected use case.
         """
         if usecase == "Basic Chatbot":
-            self.basic_chatbot_build_graph()
+            return self.basic_chatbot_build_graph()
         elif usecase == "Chatbot with Tool":
-            self.chatbot_with_tools_build_graph()
+            return self.chatbot_with_tool_build_graph()
         elif usecase == "Blog Generation":
-            self.blog_generation_build_graph()
-        elif usecase == "Coding Peer Review":
-            self.code_reviewer_build_graph()
+            return self.blog_generation_build_graph()
         else:
             raise ValueError(f"Unknown use case: {usecase}")
-        return self.graph_builder.compile()

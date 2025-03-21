@@ -8,15 +8,14 @@ class GoogleLLM:
     
     def get_llm_model(self):
         try:
-            google_api_key=self.user_controls_input["GOOGLE_API_KEY"]
-            selected_google_genai_model=self.user_controls_input['selected_google_genai_model']
-            if google_api_key=="" and os.environ["GOOGLE_API_KEY"]=="":
-                st.error("Please Enter the GOOGLE Gemini API KEY")
-
-            llm=ChatGoogleGenerativeAI(api_key=google_api_key,model=selected_google_genai_model)
-            
-        
+            google_api_key = self.user_controls_input.get("GOOGLE_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
+            selected_google_genai_model = self.user_controls_input.get('selected_google_genai_model')
+            if not google_api_key:
+                st.error("Error: Google API key not provided")
+                return None
+            llm = ChatGoogleGenerativeAI(api_key=google_api_key, model=selected_google_genai_model)
+            return llm
         except Exception as e:
-            raise ValueError(f"Error Occurred with exception : {e}")
-        return llm
+            st.error(f"Error initializing Google LLM: {e}")
+            return None
 

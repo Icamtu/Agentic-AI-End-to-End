@@ -1,57 +1,67 @@
 import streamlit as st
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 class DisplayResultStreamlit:
-    def __init__(self, usecase, graph, user_message, response=None):
-        self.usecase = usecase
-        self.graph = graph
-        self.user_message = user_message
-        self.response = response
-    
-    def display_result_on_ui(self):
-        """Display the latest assistant response from the graph and return it."""
-        usecase = self.usecase
-        response = self.response
+    def display_result(self, response: dict, usecase: str) -> str:
+        if usecase == "Blog Generation":
+            # Always prioritize direct sections display
+            if "sections" in response:
+                sections = response.get("sections", [])
+                if sections and not st.session_state.get("outline_displayed", False):
+                    outline_text = "### Generated Outline\n\n"
+                    for section in sections:
+                        outline_text += f"**{section['name']}**: {section['description']}\n\n"
+                    st.markdown(outline_text)
+                    st.markdown("Please review the outline above.")
+                    st.session_state.outline_displayed = True
+                    return outline_text
 
-        if not response:
-            st.error("No response provided to display.")
-            return "Error: No response"
+            # Process message-based content
+            messages = response.get("messages", [])
+            if not messages:
+                return "No response generated."
+            
+            assistant_response = messages[-1].content if messages else "No response generated."
+            
+            # Check for draft content
+            if "# Generated Blog Draft" in assistant_response and not st.session_state.get("draft_displayed", False):
+                st.markdown(assistant_response)
+                st.session_state.draft_displayed = True
+            # Check for final draft
+            elif "Final approved draft:" in assistant_response:
+                st.markdown("### Final Draft")
+                st.markdown(assistant_response.split("Final approved draft:", 1)[1])
+            # Display other messages without repetition
+            elif not any(x in assistant_response for x in ["Generated outline:", "# Generated Blog Draft", "Final approved draft:"]):
+                st.markdown(assistant_response)
+            
+            return assistant_response
 
-        if usecase == "Basic Chatbot":
-            assistant_response = response["messages"][-1].content if response["messages"] else "No response"
+        elif usecase == "Basic Chatbot":
+            assistant_response = response.get("messages", [{}])[-1].content if response.get("messages") else "No response generated."
             st.markdown(assistant_response)
             return assistant_response
 
         elif usecase == "Chatbot with Tool":
-            # Display only the latest relevant message
-            last_message = response["messages"][-1]
-            if isinstance(last_message, ToolMessage):
-                st.write("Tool Call Start")
-                st.write(last_message.content)
-                st.write("Tool Call End")
-                assistant_response = last_message.content
-            elif isinstance(last_message, AIMessage) and last_message.content:
-                st.write(last_message.content)
-                assistant_response = last_message.content
-            else:
-                assistant_response = "No response"
-            return assistant_response
-
-        elif usecase == "Blog Generation":
-            assistant_response = response.get("final_report", "No blog generated")
-            st.markdown(f"### Generated Blog for {self.user_message}")
-            st.markdown(assistant_response)
-            return assistant_response
+            if "messages" in response:
+                assistant_response = response.get("messages", [{}])[-1].content
+                tool_output = response.get("tool_output", "")
+                if tool_output:
+                    st.markdown("**Tool Output:**")
+                    st.code(tool_output, language="text")
+                st.markdown(assistant_response)
+                return assistant_response
+            return "No response generated."
 
         elif usecase == "Coding Peer Review":
-            feedback = response.get("review_output", "No review generated")
-            corrected_code = response.get("corrected_code", "No corrected code provided")
+            review_output = response.get("review_output", "No review generated.")
+            corrected_code = response.get("corrected_code", "")
             st.markdown("### Code Review Feedback")
-            st.markdown(feedback)
-            st.markdown("### Corrected Code")
-            st.markdown(corrected_code)
-            return feedback + "\n\n" + corrected_code  # Combined for history
+            st.markdown(review_output)
+            if corrected_code:
+                st.markdown("### Corrected Code")
+                st.code(corrected_code, language="python")
+            return review_output
 
         else:
             st.error(f"Unknown use case: {usecase}")
-            return "Error: Unknown use case"
+            return ""
