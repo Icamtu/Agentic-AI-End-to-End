@@ -27,16 +27,38 @@ class ChatbotWithToolNode:
         llm_with_tools = self.llm.bind_tools(tools)
 
         def chatbot_node(state: State) -> dict:
-            messages = state["messages"]
-            logger.info(f"Input messages: {messages}")
-            prompted_input = self.prompt.format_prompt(messages=messages).to_messages()
-            response = llm_with_tools.invoke(prompted_input)
-            logger.info(f"Raw LLM response: {response}")
-            if hasattr(response, "tool_calls") and response.tool_calls:
-                logger.info(f"Tool call made: {response.tool_calls}")
-            else:
-                logger.info("No tool calls detected in response")
-            state["messages"].append(response if isinstance(response, AIMessage) else AIMessage(content=str(response)))
+            try:
+                messages = state["messages"]
+                logger.info(f"Input messages: {messages}")
+                prompted_input = self.prompt.format_prompt(messages=messages).to_messages()
+                
+                response = llm_with_tools.invoke(prompted_input)
+                logger.info(f"Raw LLM response: {response}")
+                
+                # Handle tool calls
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    logger.info(f"Tool call made: {response.tool_calls}")
+                    for tool_call in response.tool_calls:
+                        if tool_call.get('name') == "tavily_search_results_json":
+                            # Execute tool with proper arguments
+                            tool_args = tool_call.get('args', {})
+                            search_query = tool_args.get('query', '')
+                            
+                            # Find and execute the Tavily tool
+                            tavily_tool = next((t for t in tools if t.__class__.__name__ == 'TavilySearchResults'), None)
+                            if tavily_tool:
+                                search_results = tavily_tool(search_query)
+                                state["messages"].append(AIMessage(content=f"Search results: {search_results}"))
+                                # Get final response with search results
+                                final_response = llm_with_tools.invoke(state["messages"])
+                                response = final_response
+                
+                state["messages"].append(response if isinstance(response, AIMessage) else AIMessage(content=str(response)))
+                
+            except Exception as e:
+                logger.error(f"Error processing message: {str(e)}")
+                state["messages"].append(AIMessage(content="I apologize, but I encountered an error processing your request. Please try again."))
+            
             return state
         
         return chatbot_node
