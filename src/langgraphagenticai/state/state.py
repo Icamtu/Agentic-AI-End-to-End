@@ -1,6 +1,7 @@
 # src/langgraphagenticai/state/state.py
-from typing import TypedDict, List, Dict, Optional
+from typing import TypedDict, List, Dict, Annotated, Literal, Optional
 from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 class Section(TypedDict):
     """Represents a single section of the blog."""
@@ -9,7 +10,8 @@ class Section(TypedDict):
 
 class State(TypedDict, total=False):
     """State schema for the LangGraph workflow, with all fields optional."""
-    messages: List[BaseMessage]  # Chat history including user inputs and AI responses
+    messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
+
     topic: str  # Blog topic from user input
     objective: str  # Blog objective (e.g., Informative, Persuasive)
     target_audience: str  # Intended audience (e.g., General Audience)

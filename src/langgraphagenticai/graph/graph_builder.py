@@ -4,6 +4,7 @@ from src.langgraphagenticai.nodes.blog_generation_node import BlogGenerationNode
 from src.langgraphagenticai.nodes.basic_chatbot_node import BasicChatbotNode
 from src.langgraphagenticai.nodes.chatbot_with_Tool_node import ChatbotWithToolNode
 from src.langgraphagenticai.tools.search_tool import get_tools, create_tool_nodes
+from langgraph.prebuilt import tools_condition,ToolNode
 from src.langgraphagenticai.state.state import State
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
@@ -36,16 +37,21 @@ class GraphBuilder:
         Builds a graph for the Chatbot with Tool use case.
         """
         graph_builder = StateGraph(state_schema=State)
+        
+         ## Define the tool and tool node
+
+        tools=get_tools()
+        tool_node=create_tool_nodes(tools)
+
+        # Define chatbot node
         chatbot_with_tool_node = ChatbotWithToolNode(self.llm)
-        tools = get_tools()
-        graph_builder.add_node("chatbot", chatbot_with_tool_node.create_chatbot(tools))
-        graph_builder.add_node("tools", create_tool_nodes(tools))
+        chatbot_node = chatbot_with_tool_node.create_chatbot(tools)
+
+        graph_builder.add_node("chatbot", chatbot_node)
+        graph_builder.add_node("tools", tool_node)
+        
         graph_builder.add_edge(START, "chatbot")
-        graph_builder.add_conditional_edges(
-            "chatbot",
-            lambda state: "tools" if state["messages"][-1].tool_calls else END,
-            {"tools": "tools", END: END}
-        )
+        graph_builder.add_conditional_edges("chatbot",tools_condition,)
         graph_builder.add_edge("tools", "chatbot")
         return graph_builder.compile(checkpointer=self.memory)
 

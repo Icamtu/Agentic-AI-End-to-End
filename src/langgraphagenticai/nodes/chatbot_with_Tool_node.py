@@ -2,41 +2,68 @@
 from src.langgraphagenticai.state.state import State
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
+from datetime import datetime
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ChatbotWithToolNode:
-    def __init__(self, model):
+    """
+    Chatbot logic enhanced with tool integration and date awareness.
+    """
+    def __init__(self,model):
         self.llm = model
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant with access to tools. For queries requiring external data (e.g., search), use 'tavily_search_results_json'. Respond directly only if no tool is needed."),
-            ("placeholder", "{messages}")
+            ("system", "You are an AI assistant. The current date is {current_date}. "
+                       "Use this information to provide up-to-date responses. "
+                       "If you need to fetch current information, call the appropriate tool(max 2 times) but do not repeatedly call the tool."
+                       "if you got result from tool call then stop calling tool and provide the result to user"),
+            ("user", "{input}")
         ])
-    
+
     def process(self, state: State) -> dict:
-        messages = state["messages"]
-        llm_response = self.llm.invoke(messages)
-        tools_response = AIMessage(content=f"Tool integration for '{messages[-1].content}'")
-        state["messages"].extend([llm_response, tools_response])
-        return state
+        """
+        Processes the input state and generates a response with tool integration and date awareness.
+        """
+        user_input = state["messages"][-1] if state["messages"] else ""
+        current_date = datetime.now().strftime("%B %d, %Y")  # e.g., "March 24, 2025""
+
+        # Prepare the prompt with the current date
+        formatted_prompt = self.prompt.format(
+            current_date=current_date,
+            input=user_input
+        )
+        # Invoke the LLM with the formatted prompt
+        llm_response = self.llm.invoke(formatted_prompt)
+
+       
+        # Simulate tool-specific logic based on user input
+        tools_response = f"Tool integration for: '{user_input}' with date: {current_date}"
+
+        return {"messages": [llm_response, tools_response]}
     
     def create_chatbot(self, tools):
-        logger.info(f"Tools bound to LLM: {tools}")
+        """
+        Returns a chatbot node function with tool binding and date awareness.
+        """
         llm_with_tools = self.llm.bind_tools(tools)
 
-        def chatbot_node(state: State) -> dict:
-            messages = state["messages"]
-            logger.info(f"Input messages: {messages}")
-            prompted_input = self.prompt.format_prompt(messages=messages).to_messages()
-            response = llm_with_tools.invoke(prompted_input)
-            logger.info(f"Raw LLM response: {response}")
-            if hasattr(response, "tool_calls") and response.tool_calls:
-                logger.info(f"Tool call made: {response.tool_calls}")
-            else:
-                logger.info("No tool calls detected in response")
-            state["messages"].append(response if isinstance(response, AIMessage) else AIMessage(content=str(response)))
-            return state
-        
+        def chatbot_node(state: State):
+            """
+            Chatbot logic for processing the input state and returning a response.
+            """
+            current_date = datetime.now().strftime("%B %d, %Y")  # e.g., "March 24, 2025"
+            user_input = state["messages"][-1] if state["messages"] else ""
+
+            # Format the prompt with the current date
+            formatted_prompt = self.prompt.format(
+                current_date=current_date,
+                input=user_input
+            )
+            # Invoke the LLM with tools enabled
+            response = llm_with_tools.invoke(formatted_prompt)
+
+            return {"messages": [response]}
+            
         return chatbot_node

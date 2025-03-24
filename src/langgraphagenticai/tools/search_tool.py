@@ -4,7 +4,7 @@ from langgraph.prebuilt import ToolNode
 import os
 import streamlit as st
 
-def get_tools(max_results=10):
+def get_tools(max_results=3):
     """
     Returns a list of tools with configurable max_results.
     """

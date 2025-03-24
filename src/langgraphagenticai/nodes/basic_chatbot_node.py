@@ -42,3 +42,5 @@ class BasicChatbotNode:
                 return {"messages": [AIMessage(content=f"I encountered an error: {str(e)}")]}
 
         return chatbot
+
+
