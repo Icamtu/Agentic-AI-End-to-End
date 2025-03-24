@@ -13,3 +13,4 @@ graphviz
 langgraph
 langgraph-cli[inmem]
 langchain-xai
+typing-extensions>=4.7.0

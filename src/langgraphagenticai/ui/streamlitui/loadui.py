@@ -115,6 +115,11 @@ class LoadStreamlitUI:
                 st.session_state["GROQ_API_KEY"] = self.user_controls["GROQ_API_KEY"]
                 if not self.user_controls["GROQ_API_KEY"]:
                     st.warning("⚠️ Please enter your GROQ API key to proceed.")
+                if self.user_controls["GROQ_API_KEY"]:
+                    # Update available Groq models when API key is provided
+                    self.config.update_groq_models(self.user_controls["GROQ_API_KEY"])
+                    # Reload model options after update
+                    model_options = self.config.get_groq_model_options()
             elif self.user_controls["selected_llm"] == "Google":
                 model_options = self.config.get_google_model_options()
                 self.user_controls["selected_google_genai_model"] = st.selectbox(
