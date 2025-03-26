@@ -1,1 +1,4 @@
 venv/
+.vscode/
+.devcontainer/
+.langgraph_api/

@@ -1,45 +1,29 @@
-# from typing import Annotated, Literal, Optional, List
-# from typing_extensions import TypedDict
-# from langgraph.graph.message import add_messages
-# from langchain_core.messages import HumanMessage, AIMessage
-
-# class State(TypedDict):
-#     """
-#     Represents the structure of the state used in the graph.
-#     """
-#     messages: Annotated[list,add_messages]
-
-# state.py
-from typing import Annotated, List, Optional
-from typing_extensions import TypedDict
+# src/langgraphagenticai/state/state.py
+from typing import TypedDict, List, Dict, Annotated, Literal, Optional
+from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
-import operator
-from pydantic import BaseModel, Field
 
-# Schema for Blog Generation sections
-class Section(BaseModel):
-    name: str = Field(description="Name for this section of the report.")
-    description: str = Field(description="Brief overview of the main topics and concepts to be covered in this section.")
+class Section(TypedDict):
+    """Represents a single section of the blog."""
+    name: str
+    description: str
 
-# Unified State for all use cases
-class State(TypedDict, total=False):  # total=False makes all fields optional
-    """
-    Represents the structure of the state used in the graph for multiple use cases:
-    - Chat Bot: messages
-    - Bot with Tool: messages, tool_output
-    - Blog Generation: messages, topic, sections, completed_sections, final_report
-    - Code Reviewer: messages, code_input, review_output
-    """
-    messages: Annotated[List, add_messages]  # Common to all: Chat history
-    topic: str  # Blog Generation: Report topic
-    sections: List[Section]  # Blog Generation: List of report sections
-    completed_sections: Annotated[List[str], operator.add]  # Blog Generation: Completed sections
-    final_report: str  # Blog Generation: Final report
-    tool_output: str  # Bot with Tool: Output from tool execution
-    code_input: str  # Code Reviewer: Input code to review
-    review_output: str  # Code Reviewer: Review results
+class State(TypedDict, total=False):
+    """State schema for the LangGraph workflow, with all fields optional."""
+    messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
 
-# Worker State for Blog Generation
-class WorkerState(TypedDict):
-    section: Section
-    completed_sections: Annotated[List[str], operator.add]
+    topic: str  # Blog topic from user input
+    objective: str  # Blog objective (e.g., Informative, Persuasive)
+    target_audience: str  # Intended audience (e.g., General Audience)
+    tone_style: str  # Tone and style (e.g., Casual, Formal)
+    word_count: int  # Target word count for the blog
+    structure: str  # Blog structure (e.g., "Introduction, Main Points, Conclusion")
+    sections: List[Section]  # List of blog sections with names and descriptions
+    search_results: Dict[str, str]  # Web search results keyed by section name
+    completed_sections: List[str]  # Generated sections of the draft
+    needs_facts: bool  # Flag to trigger web search
+    outline_feedback: str  # Feedback from outline review ("approved" or "add_more_details")
+    draft_feedback: str  # Feedback from draft review ("approved" or "add_more_details")
+    outline_approved: bool  # Approval status of the outline
+    draft_approved: bool  # Approval status of the draft
+    feedback: str  # General feedback string for revisions
