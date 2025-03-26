@@ -38,34 +38,22 @@ class LoadStreamlitUI:
             dot.node("chatbot", "Chatbot")
             dot.node("tools", "Tools")
             dot.node("END", "END")
-            dot.edges([("START", "chatbot"), ("chatbot", "END")])
-            dot.edge("chatbot", "tools", label="conditional", style="dashed")
-            dot.edge("tools", "chatbot",  style="dashed")
-
+            dot.edges([("START", "chatbot"), ("chatbot", "tools"), ("tools", "chatbot")])
+            dot.edge("chatbot", "chatbot", label="conditional", style="dashed")
         elif usecase == "Blog Generation":
-            dot.node("S", "START", shape="ellipse", style="filled", fillcolor="lightgray")
-            dot.node("G", "END", shape="ellipse", style="filled", fillcolor="lightgray")
-            dot.node("A", "User Input", shape="rectangle")
-            dot.node("B", "Outline Generator-LLM", shape="rectangle")
-            dot.node("C", "Outline Review-Human", shape="rectangle")
-            dot.node("D", "Draft Generator-LLM", shape="rectangle")
-            dot.node("E", "Draft Review-Human", shape="rectangle")
-            dot.node("I", "Web Search/Scraping", shape="rectangle")
-            dot.node("F", "Revision Generator-LLM", shape="rectangle")
-            
-            # Edges
-            dot.edge("S", "A")
-            dot.edge("A", "B")
-            dot.edge("B", "C", label="Generated Outline")
-            dot.edge("C", "D")
-            dot.edge("C", "B", label="Edited Outline")  # Human feedback loop for Outline
-            dot.edge("D", "E")
-            dot.edge("D", "I", label="Needs Facts")  # If draft needs more facts, search
-            dot.edge("I", "D", label="Relevant Info")  # Enrich draft with factual data
-            dot.edge("E", "G")  # If approved, go to END
-            dot.edge("E", "F", label="Feedback")
-            dot.edge("F", "E", label="Refined Draft")  # Loopback for feedback updates
-
+            dot.node("START", "START")
+            dot.node("orchestrator", "Orchestrator")
+            dot.node("llm_call", "LLM Call (Workers)")
+            dot.node("synthesizer", "Synthesizer")
+            dot.node("END", "END")
+            dot.edges([
+                ("START", "orchestrator"),
+                ("llm_call", "synthesizer"),
+                ("synthesizer", "END"),
+                
+            ])
+            dot.edge("orchestrator", "llm_call", label="parallel", style="dashed")
+            dot.edge("llm_call", "synthesizer", label="parallel", style="dashed")
         elif usecase == "Coding Peer Review":
             dot.node("START", "START")
             dot.node("reviewer", "Reviewer")
@@ -115,11 +103,6 @@ class LoadStreamlitUI:
                 st.session_state["GROQ_API_KEY"] = self.user_controls["GROQ_API_KEY"]
                 if not self.user_controls["GROQ_API_KEY"]:
                     st.warning("⚠️ Please enter your GROQ API key to proceed.")
-                if self.user_controls["GROQ_API_KEY"]:
-                    # Update available Groq models when API key is provided
-                    self.config.update_groq_models(self.user_controls["GROQ_API_KEY"])
-                    # Reload model options after update
-                    model_options = self.config.get_groq_model_options()
             elif self.user_controls["selected_llm"] == "Google":
                 model_options = self.config.get_google_model_options()
                 self.user_controls["selected_google_genai_model"] = st.selectbox(
@@ -165,7 +148,7 @@ class LoadStreamlitUI:
                 )
                 os.environ["TAVILY_API_KEY"] = self.user_controls["TAVILY_API_KEY"]
                 st.session_state["TAVILY_API_KEY"] = self.user_controls["TAVILY_API_KEY"]
-                if not self.user_controls["TAVILY_API_KEY"] and self.user_controls["selected_usecase"] in ["Chatbot with Tool", "Blog Generation"]:
+                if not self.user_controls["TAVILY_API_KEY"]:
                     st.warning("⚠️ Please enter your Tavily API key to proceed.")
 
             # Reset button
