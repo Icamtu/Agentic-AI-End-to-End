@@ -1,7 +1,0 @@
-{
-    "dependencies": ["."],
-    "graphs": {
-        "main_graph": "C:\\Users\\kamal\\OneDrive\\Desktop\\Research\\krish\\Projects\\LangGraphProject\\src\\langgraphagenticai\\graph\\graph_builder.py:graph"
-    },
-    "env": "../.env"
-}
