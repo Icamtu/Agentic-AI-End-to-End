@@ -24,41 +24,64 @@ class LoadStreamlitUI:
         }
 
     def create_graph_diagram(self, usecase):
-        """Create a graph diagram for the selected use case using GraphBuilder."""
+        """Create a graph diagram for the selected use case based on GraphBuilder's structure."""
         dot = graphviz.Digraph(comment=f"{usecase} Graph", format="png")
+        dot.attr(rankdir="TB")  # Top-to-bottom layout for clarity
 
-        # Define graph structure based on use case
         if usecase == "Basic Chatbot":
+            # Nodes
             dot.node("START", "START")
             dot.node("chatbot", "Chatbot")
             dot.node("END", "END")
-            dot.edges([("START", "chatbot"), ("chatbot", "END")])
+            # Edges
+            dot.edge("START", "chatbot")
+            dot.edge("chatbot", "END")
+        
         elif usecase == "Chatbot with Tool":
+            # Nodes
             dot.node("START", "START")
             dot.node("chatbot", "Chatbot")
             dot.node("tools", "Tools")
             dot.node("END", "END")
-            dot.edges([("START", "chatbot"), ("chatbot", "tools"), ("tools", "chatbot")])
-            dot.edge("chatbot", "chatbot", label="conditional", style="dashed")
+            # Edges
+            dot.edge("START", "chatbot")
+            dot.edge("chatbot", "tools", label="tools_condition", style="dashed", constraint="false")
+            dot.edge("tools", "chatbot", label="return")
+            dot.edge("chatbot", "END", label="no tools", style="dashed", constraint="false")
+        
         elif usecase == "Blog Generation":
+            # Nodes
             dot.node("START", "START")
-            dot.node("orchestrator", "Orchestrator")
-            dot.node("llm_call", "LLM Call (Workers)")
-            dot.node("synthesizer", "Synthesizer")
+            dot.node("user_input", "User Input")
+            dot.node("outline_generator", "Outline Generator")
+            dot.node("outline_review", "Outline Review\n(Human)", shape="diamond")
+            dot.node("web_search", "Web Search")
+            dot.node("draft_generator", "Draft Generator")
+            dot.node("draft_review", "Draft Review\n(Human)", shape="diamond")
+            dot.node("revision_generator", "Revision Generator")
             dot.node("END", "END")
-            dot.edges([
-                ("START", "orchestrator"),
-                ("llm_call", "synthesizer"),
-                ("synthesizer", "END"),
-                
-            ])
-            dot.edge("orchestrator", "llm_call", label="parallel", style="dashed")
-            dot.edge("llm_call", "synthesizer", label="parallel", style="dashed")
-        elif usecase == "Coding Peer Review":
+            # Static Edges
+            dot.edge("START", "user_input")
+            dot.edge("user_input", "outline_generator")
+            dot.edge("outline_generator", "outline_review")
+            dot.edge("web_search", "draft_generator")
+            dot.edge("revision_generator", "draft_review")
+            # Conditional Edges for outline_review
+            dot.edge("outline_review", "draft_generator", label="approved", style="dashed", color="green")
+            dot.edge("outline_review", "outline_generator", label="add details", style="dashed", color="orange", constraint="false")
+            # Conditional Edges for draft_generator
+            dot.edge("draft_generator", "web_search", label="needs facts", style="dashed", color="blue")
+            dot.edge("draft_generator", "draft_review", label="has facts", style="dashed", color="green")
+            # Conditional Edges for draft_review
+            dot.edge("draft_review", "END", label="approved", style="dashed", color="green")
+            dot.edge("draft_review", "revision_generator", label="add details", style="dashed", color="orange", constraint="false")
+        
+        # Note: Coding Peer Review not implemented in GraphBuilder, so skipping it
+        else:
             dot.node("START", "START")
-            dot.node("reviewer", "Reviewer")
+            dot.node("unknown", f"Unknown Use Case:\n{usecase}")
             dot.node("END", "END")
-            dot.edges([("START", "reviewer"), ("reviewer", "END")])
+            dot.edges([("START", "unknown"), ("unknown", "END")])
 
         return dot
 

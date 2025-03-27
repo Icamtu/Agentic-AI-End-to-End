@@ -20,6 +20,9 @@ def get_tools(max_results=3):
         return []
 
 def create_tool_nodes(tools):
+    """
+    Creates tool nodes based on the provided tools.
+    """
     try:
         if not tools:
             st.error("Error: No tools provided")

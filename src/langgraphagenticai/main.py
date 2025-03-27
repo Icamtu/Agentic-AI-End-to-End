@@ -71,7 +71,7 @@ def load_langgraph_agenticai_app():
     if "current_usecase" not in st.session_state:
         st.session_state.current_usecase = None
 
-    config = {"configurable": {"session_id": st.session_state.session_id, "thread_id": st.session_state.thread_id, "recursion_limit": 50}}
+    config = {"configurable": {"session_id": st.session_state.session_id, "thread_id": st.session_state.thread_id, "recursion_limit": 10}}
     logger.info(f"Session ID: {st.session_state.session_id}, Thread ID: {st.session_state.thread_id}")
 
     # Load LLM
