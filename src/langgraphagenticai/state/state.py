@@ -1,29 +1,34 @@
-# src/langgraphagenticai/state/state.py
-from typing import TypedDict, List, Dict, Annotated, Literal, Optional
-from langchain_core.messages import BaseMessage
+from typing import Annotated, List, TypedDict
+import operator
+from pydantic import BaseModel, Field
 from langgraph.graph.message import add_messages
 
-class Section(TypedDict):
-    """Represents a single section of the blog."""
-    name: str
-    description: str
+# Schema for structured output to use in planning
+class Section(BaseModel):
+    name: str = Field(description="Name for this section of the report.")
+    description: str = Field(description="Brief overview of the main topics and concepts to be covered in this section.")
 
-class State(TypedDict, total=False):
-    """State schema for the LangGraph workflow, with all fields optional."""
+class Sections(BaseModel):
+    sections: List[Section] = Field(description="Sections of the report.")
+
+# Graph state
+class State(TypedDict):
+
     messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
 
-    topic: str  # Blog topic from user input
-    objective: str  # Blog objective (e.g., Informative, Persuasive)
-    target_audience: str  # Intended audience (e.g., General Audience)
-    tone_style: str  # Tone and style (e.g., Casual, Formal)
-    word_count: int  # Target word count for the blog
-    structure: str  # Blog structure (e.g., "Introduction, Main Points, Conclusion")
-    sections: List[Section]  # List of blog sections with names and descriptions
-    search_results: Dict[str, str]  # Web search results keyed by section name
-    completed_sections: List[str]  # Generated sections of the draft
-    needs_facts: bool  # Flag to trigger web search
-    outline_feedback: str  # Feedback from outline review ("approved" or "add_more_details")
-    draft_feedback: str  # Feedback from draft review ("approved" or "add_more_details")
-    outline_approved: bool  # Approval status of the outline
-    draft_approved: bool  # Approval status of the draft
-    feedback: str  # General feedback string for revisions
+    topic: str  # Report topic from user input
+    objective: str  # Objective from user input
+    target_audience: str  # Target audience from user input
+    tone_style: str  # Tone/style from user input
+    word_count: int  # Word count from user input
+    structure: str  # Structure from user input
+    sections: List[Section]  # List of report sections
+    completed_sections: Annotated[List[str], operator.add]  # All workers write to this key in parallel
+    final_report: str  # Final report
+    feedback: str  # Human feedback
+    draft_approved: bool  # Whether the draft is approved
+
+# Worker state
+class WorkerState(TypedDict):
+    section: Section
+    completed_sections: Annotated[List[str], operator.add]

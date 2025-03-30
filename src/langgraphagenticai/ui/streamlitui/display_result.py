@@ -1,6 +1,7 @@
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,7 @@ class DisplayResultStreamlit:
         defaults = {
             "waiting_for_feedback": False,
             "blog_requirements_collected": False,
-            "outline_displayed": False,
-            "draft_displayed": False,
+            "content_displayed": False,
             "graph_state": None,
             "current_session_id": None
         }
@@ -36,8 +36,7 @@ class DisplayResultStreamlit:
             store[session_id] = ChatMessageHistory()
         # Reset display flags if session ID changes
         if st.session_state.current_session_id != session_id:
-            st.session_state.outline_displayed = False
-            st.session_state.draft_displayed = False
+            st.session_state.content_displayed = False
             st.session_state.current_session_id = session_id
         return store[session_id]
 
@@ -56,11 +55,11 @@ class DisplayResultStreamlit:
             self._handle_chatbot_input()
 
     def _handle_blog_generation(self):
-        # Fallback: Check graph state if waiting_for_feedback isn't set
+        # Check if we're waiting for feedback
         if not st.session_state.waiting_for_feedback and st.session_state.graph_state:
             graph_state = st.session_state.graph_state
-            if graph_state.next and graph_state.next[0] in ["outline_review", "draft_review"]:
-                logger.info("Fallback: Setting waiting_for_feedback based on graph state")
+            if graph_state.next and graph_state.next[0] == "feedback_collector":
+                logger.info("Setting waiting_for_feedback based on graph state")
                 st.session_state.waiting_for_feedback = True
 
         if st.session_state.waiting_for_feedback:
@@ -88,69 +87,71 @@ class DisplayResultStreamlit:
             submit_button = st.form_submit_button("Submit Blog Requirements")
 
             if submit_button:
-                if not all([topic, objective, target_audience, tone_style, structure]):
+                if not all([topic, objective, target_audience, tone_style]):
                     st.error("Please fill in all required fields.")
                     return
-                user_message = f"Topic: {topic} Objective: {objective} Target Audience: {target_audience} Tone & Style: {tone_style} Word Count: {word_count} Structure: {structure}"
+                user_message = f"Topic: {topic}\nObjective: {objective}\nTarget Audience: {target_audience}\nTone & Style: {tone_style}\nWord Count: {word_count}\nStructure: {structure}"
                 self.session_history.add_user_message(user_message)
                 with st.chat_message("user"):
                     st.markdown(user_message)
                 # Reset display flags for new blog generation
-                st.session_state.outline_displayed = False
-                st.session_state.draft_displayed = False
+                st.session_state.content_displayed = False
                 st.session_state.blog_requirements_collected = True
                 self._process_graph_stream(HumanMessage(content=user_message))
 
     def _process_feedback(self):
         latest_state = st.session_state.graph_state.values if st.session_state.graph_state else {}
-        # Display the outline if it hasn't been displayed yet
-        if "sections" in latest_state and not st.session_state.get("outline_displayed", False):
+        
+        # Display the content if it hasn't been displayed yet
+        if "blog_content" in latest_state and not st.session_state.get("content_displayed", False):
             with st.chat_message("assistant"):
-                outline_text = "### Generated Outline\n\n" + "\n\n".join(f"**{s['name']}**: {s['description']}" for s in latest_state["sections"])
-                st.markdown(outline_text)
-                st.markdown("Please review the outline above.")
-                st.session_state.outline_displayed = True
+                st.markdown("### Generated Blog Content")
+                st.markdown(self._format_blog_content(latest_state["blog_content"]))
+                st.session_state.content_displayed = True
 
-        if "completed_sections" in latest_state and not st.session_state.get("draft_displayed", False):
-            with st.chat_message("assistant"):
-                draft_content = "\n\n".join(latest_state["completed_sections"])
-                st.markdown("### Generated Draft")
-                st.markdown(draft_content)
-                st.session_state.draft_displayed = True
-
+        # Check if we're at the feedback collection node
         current_node = st.session_state.graph_state.next[0] if st.session_state.graph_state.next else None
         logger.info(f"Current node in _process_feedback: {current_node}")
-        if current_node == "outline_review":
-            st.write("Review the outline:")
+        
+        if current_node == "feedback_collector":
+            st.write("### Review the generated content:")
             col1, col2 = st.columns(2)
+            
             with col1:
-                if st.button("Looks good", key="outline_approve"):
-                    st.session_state.outline_feedback = "approved"
-                    st.session_state.waiting_for_feedback = False
-                    logger.info("Outline approved")
+                if st.button("Approve", key="content_approve"):
+                    feedback = {
+                        "approved": True,
+                        "comments": "Content approved."
+                    }
+                    self._submit_feedback(feedback)
+                    
             with col2:
-                if st.button("Add more details", key="outline_reject"):
-                    st.session_state.outline_feedback = "add_more_details"
-                    st.session_state.waiting_for_feedback = False
-                    logger.info("Outline regeneration requested")
-        elif current_node == "draft_review":
-            st.write("Review the draft:")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Looks good", key="draft_approve"):
-                    st.session_state.draft_feedback = "approved"
-                    st.session_state.waiting_for_feedback = False
-                    st.session_state.draft_displayed = False
-                    logger.info("Draft approved")
-            with col2:
-                if st.button("Add more details", key="draft_reject"):
-                    st.session_state.draft_feedback = "add_more_details"
-                    st.session_state.waiting_for_feedback = False
-                    st.session_state.draft_displayed = False
-                    logger.info("Draft regeneration requested")
+                with st.expander("Request Revisions"):
+                    comments = st.text_area("Provide revision comments:", 
+                                           placeholder="Please explain what changes you would like to see.")
+                    if st.button("Submit Revisions"):
+                        if not comments:
+                            st.error("Please provide revision comments.")
+                        else:
+                            feedback = {
+                                "approved": False,
+                                "comments": comments
+                            }
+                            self._submit_feedback(feedback)
 
-        if not st.session_state.waiting_for_feedback:
-            self._process_graph_stream()
+    def _submit_feedback(self, feedback):
+        """Submit feedback to the graph and continue processing."""
+        try:
+            # Convert feedback to the expected ReviewFeedback format
+            feedback_json = json.dumps(feedback)
+            st.session_state.waiting_for_feedback = False
+            st.session_state.content_displayed = False
+            # Continue processing with the feedback
+            self._process_graph_stream(HumanMessage(content=feedback_json))
+            logger.info(f"Feedback submitted: {feedback}")
+        except Exception as e:
+            logger.error(f"Error submitting feedback: {e}")
+            st.error(f"Error submitting feedback: {e}")
 
     def _handle_chatbot_input(self):
         user_message = st.chat_input("Enter your message:")
@@ -171,18 +172,19 @@ class DisplayResultStreamlit:
                             with st.chat_message("assistant"):
                                 self._display_result(state)
                             self.session_history.add_ai_message(state["messages"][-1].content)
+                    
                     graph_state = self.graph.get_state(self.config)
                     logger.info(f"Graph state next: {graph_state.next}")
-                    if graph_state.next and graph_state.next[0] in ["outline_review", "draft_review"]:
+                    
+                    if graph_state.next and graph_state.next[0] == "feedback_collector":
                         st.session_state.waiting_for_feedback = True
                         st.session_state.graph_state = graph_state
-                        logger.info(f"Paused at {graph_state.next[0]} for feedback")
+                        logger.info("Paused for feedback collection")
                         st.rerun()  # Force UI update to ensure feedback buttons appear
                         break
                     elif not graph_state.next and self.usecase == "Blog Generation":
                         st.session_state.blog_requirements_collected = False
-                        st.session_state.outline_displayed = False  # Reset for new blog
-                        st.session_state.draft_displayed = False  # Reset for new blog
+                        st.session_state.content_displayed = False  # Reset for new blog
                         with st.chat_message("assistant"):
                             st.markdown("✅ Blog generation completed!")
                         if st.button("New Blog Generation"):
@@ -197,23 +199,24 @@ class DisplayResultStreamlit:
     def _display_result(self, response):
         logger.info(f"Display result response: {response}")
         if self.usecase == "Blog Generation":
-            # Outline display moved to _process_feedback
             messages = response.get("messages", [])
             if messages:
                 content = messages[-1].content
-                if "# Generated Blog Draft" in content and not st.session_state.get("draft_displayed", False):
-                    st.markdown(self._format_blog_content(content))
-                    st.session_state.draft_displayed = True
-                elif "Final approved draft:" in content:
-                    st.markdown("### Final Draft")
-                    st.markdown(self._format_blog_content(content.split("Final approved draft:", 1)[1]))
-                elif not any(x in content for x in ["Generated outline:", "# Generated Blog Draft", "Final approved draft:"]):
+                blog_content = response.get("blog_content", "")
+                
+                if blog_content and not st.session_state.content_displayed:
+                    st.markdown("### Generated Blog Content")
+                    st.markdown(self._format_blog_content(blog_content))
+                    st.session_state.content_displayed = True
+                else:
                     st.markdown(content)
 
         elif self.usecase == "Basic Chatbot":
+            # Kept exactly as in original code
             st.markdown(response.get("messages", [{}])[-1].content)
 
         elif self.usecase == "Chatbot with Tool":
+            # Kept exactly as in original code
             content = response.get("messages", [{}])[-1].content
             tool_output = response.get("tool_output", "")
             if tool_output:
@@ -221,14 +224,11 @@ class DisplayResultStreamlit:
                 st.code(tool_output, language="text")
             st.markdown(content)
 
-        elif self.usecase == "Coding Peer Review":
-            st.markdown("### Code Review Feedback")
-            st.markdown(response.get("review_output", "No review generated."))
-            if corrected_code := response.get("corrected_code", ""):
-                st.markdown("### Corrected Code")
-                st.code(corrected_code, language="python")
-
     def _format_blog_content(self, content):
+        """Format blog content for better display in Streamlit."""
+        if not content:
+            return ""
+            
         sections = content.strip().split("\n\n")
         formatted = "\n\n".join(
             f"\n\n{s.strip()}" if s.startswith("#") else s.strip()

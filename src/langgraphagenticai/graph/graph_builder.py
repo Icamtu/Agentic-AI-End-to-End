@@ -145,73 +145,25 @@ class GraphBuilder:
             graph_builder = StateGraph(state_schema=State)
             blog_node = BlogGenerationNode(self.llm)
             
-            # Modify user_input node to use LLM for structure
-            def user_input_with_validation(state: State) -> dict:
-                user_message = state["messages"][-1].content if state["messages"] else ""
-                result = blog_node.user_input(state)  # Initial parsing
-                # Use LLM to interpret full user input for structure
-                full_input = user_message  # Use raw message for maximum context
-                result["structure"] = ", ".join(self.validate_and_standardize_structure(full_input))
-                logger.info(f"Validated structure: {result['structure']}")
-                return result
-
-            # Add nodes with validated user input
-            graph_builder.add_node("user_input", user_input_with_validation)
-            graph_builder.add_node("outline_generator", blog_node.outline_generator)
-            graph_builder.add_node("outline_review", blog_node.outline_review)
-            graph_builder.add_node("draft_generator", blog_node.draft_generator)
-            graph_builder.add_node("draft_review", blog_node.draft_review)
-            graph_builder.add_node("web_search", blog_node.web_search)
+           # # Add nodes
+            graph_builder.add_node("user_input", blog_node.user_input)
+            graph_builder.add_node("orchestrator", blog_node.orchestrator)
+            graph_builder.add_node("llm_call", blog_node.llm_call)
+            graph_builder.add_node("synthesizer", blog_node.synthesizer)
+            graph_builder.add_node("feedback_collector", blog_node.feedback_collector)
             graph_builder.add_node("revision_generator", blog_node.revision_generator)
 
-            # Define edges
+            # Add edges
             graph_builder.add_edge(START, "user_input")
-            graph_builder.add_edge("user_input", "outline_generator")
-            graph_builder.add_edge("outline_generator", "outline_review")
-            
-            # Conditional edge for outline review based on button feedback
-            def determine_outline_review(state):
-                if not state:
-                    logger.error("Invalid state provided")
-                    return "outline_review"
-                feedback = state.get("outline_feedback", "")
-                if not feedback:  # No feedback yet, stay at review
-                    return "outline_review"
-                return "draft_generator" if feedback == "approved" else "outline_generator"
-
-            graph_builder.add_conditional_edges(
-                "outline_review",
-                determine_outline_review,
-                {"outline_review": "outline_review", "outline_generator": "outline_generator", "draft_generator": "draft_generator"}
-            )
-
-            # Draft generator conditional edge for web search
-            graph_builder.add_conditional_edges(
-                "draft_generator",
-                lambda state: "web_search" if state.get("needs_facts", False) else "draft_review",
-                {"web_search": "web_search", "draft_review": "draft_review"}
-            )
-            graph_builder.add_edge("web_search", "draft_generator")
-            
-            # Conditional edge for draft review based on button feedback
-            def determine_draft_review(state):
-                if not state:
-                    logger.error("Invalid state provided")
-                    return "draft_review"
-                feedback = state.get("draft_feedback", "")
-                if not feedback:  # No feedback yet, stay at review
-                    return "draft_review"
-                return END if feedback == "approved" else "revision_generator"
-
-            graph_builder.add_conditional_edges(
-                "draft_review",
-                determine_draft_review,
-                {"draft_review": "draft_review", "revision_generator": "revision_generator", END: END}
-            )
-            graph_builder.add_edge("revision_generator", "draft_review")
+            graph_builder.add_edge("user_input", "orchestrator")
+            graph_builder.add_conditional_edges("orchestrator", lambda state: blog_node.assign_workers(state), ["llm_call"])
+            graph_builder.add_edge("llm_call", "synthesizer")
+            graph_builder.add_edge("synthesizer", "feedback_collector")
+            graph_builder.add_conditional_edges("feedback_collector", blog_node.route_feedback, {"revision_generator": "revision_generator", END: END})
+            graph_builder.add_edge("revision_generator", "synthesizer")  # Loop back to synthesize revised sections
 
             # Compile with interrupts at review nodes
-            return graph_builder.compile(interrupt_before=["outline_review", "draft_review"], checkpointer=self.memory)
+            return graph_builder.compile(interrupt_before=["feedback_collector"], checkpointer=self.memory)
         except Exception as e:
             logger.error(f"Error building blog generation graph: {e}")
             return None
