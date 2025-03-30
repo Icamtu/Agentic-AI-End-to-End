@@ -1,27 +1,8 @@
-# # src/langgraphagenticai/nodes/blog_generation_node.py
-# from src.langgraphagenticai.state.state import State, Section
-# from pydantic import BaseModel, Field
-# from typing import List, Dict, Optional
-# from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-# from langchain_core.prompts import ChatPromptTemplate
-# from src.langgraphagenticai.tools.search_tool import get_tools
-# import logging
-# import streamlit as st
-# import json
-
-# # Configure logging
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-
-
 import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.constants import Send
 from src.langgraphagenticai.state.state import State, WorkerState, Sections, Section  # Import from state.py
 from langchain_core.messages import SystemMessage, HumanMessage
-from IPython.display import Markdown, display
-from PIL import Image
 import streamlit as st
 import json
 
@@ -95,30 +76,31 @@ class BlogGenerationNode:
         return {"final_report": final_report}
 
     def feedback_collector(self, state: State) -> dict:
-        """Collect human feedback on the draft using Streamlit interface."""
+        """Collect human feedback on the draft."""
         logger.info("Executing feedback_collector")
         
-        # Get feedback from Streamlit session state
-        feedback = st.session_state.get("draft_feedback", "")
+        # Check if we have a new human message with feedback
+        if state["messages"] and isinstance(state["messages"][-1], HumanMessage):
+            try:
+                # Parse the feedback from the human message
+                feedback_data = json.loads(state["messages"][-1].content)
+                is_approved = feedback_data.get("approved", False)
+                comments = feedback_data.get("comments", "")
+                
+                logger.info(f"Parsed feedback: approved={is_approved}, comments={comments}")
+                
+                return {
+                    "feedback": comments,
+                    "draft_approved": is_approved,
+                    "blog_content": state.get("final_report", "")  # Keep the content in state
+                }
+            except json.JSONDecodeError:
+                # Not a valid JSON feedback
+                logger.warning("Invalid feedback format")
+                return {"feedback": "", "draft_approved": False}
         
-        # Check if feedback exists
-        if feedback:
-            logger.info(f"Collected feedback: {feedback}")
-            # Set draft_approved in state
-            state["draft_approved"] = feedback == "approved"
-            return {
-                "feedback": feedback,
-                "draft_approved": state["draft_approved"]
-            }
-        else:
-            logger.info("No feedback provided yet")
-            # Set draft_approved in state
-            state["draft_approved"] = False
-            return {
-                "feedback": "",
-                "draft_approved": state["draft_approved"]
-            }
-
+        # No feedback yet
+        return {"feedback": "", "draft_approved": False}
     def revision_generator(self,state: State) -> dict:
         """Revise the report based on human feedback."""
         if state["draft_approved"]:

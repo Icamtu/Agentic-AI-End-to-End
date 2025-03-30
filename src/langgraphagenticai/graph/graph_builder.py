@@ -163,7 +163,7 @@ class GraphBuilder:
             graph_builder.add_edge("revision_generator", "synthesizer")  # Loop back to synthesize revised sections
 
             # Compile with interrupts at review nodes
-            return graph_builder.compile(interrupt_before=["feedback_collector"], checkpointer=self.memory)
+            return graph_builder.compile(interrupt_after=["feedback_collector"], checkpointer=self.memory)
         except Exception as e:
             logger.error(f"Error building blog generation graph: {e}")
             return None
