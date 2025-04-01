@@ -18,7 +18,7 @@ class ReviewFeedback(BaseModel):
     approved: bool = Field(description="Approval status: True for approved, False for rejected")
     comments: str = Field(description="Reviewer comments")
 
-class GraphBuilder:
+class GraphBuilder: 
     def __init__(self, llm):
         self.llm = llm
         self.memory = MemorySaver()
@@ -48,7 +48,11 @@ class GraphBuilder:
             if line.lower().startswith("structure:"):
                 user_structure = line.split(":", 1)[1].strip()
                 break
-
+        
+        if not user_structure:
+            logger.info("No structure provided; returning default structure")
+            return default_structure
+        
         # Define the prompt for the LLM
         system_prompt = (
             "You are an expert blog planner. Your task is to analyze the user's input and extract or infer a clear, concise structure "
@@ -101,6 +105,7 @@ class GraphBuilder:
             logger.error(f"Error in LLM structure generation: {e}")
             return default_structure
 
+
     def basic_chatbot_build_graph(self):
         """
         Builds a graph for the Basic Chatbot use case.
@@ -136,7 +141,7 @@ class GraphBuilder:
 
     def blog_generation_build_graph(self):
         """
-        Builds a graph for the Blog Generation use case with button-based feedback and LLM-driven structure generation.
+        Builds a graph for the Blog Generation use case.
         """
         try:
             if not self.llm:
@@ -144,29 +149,38 @@ class GraphBuilder:
 
             graph_builder = StateGraph(state_schema=State)
             blog_node = BlogGenerationNode(self.llm)
-            
-           # # Add nodes
+
+            # Add nodes
             graph_builder.add_node("user_input", blog_node.user_input)
             graph_builder.add_node("orchestrator", blog_node.orchestrator)
             graph_builder.add_node("llm_call", blog_node.llm_call)
             graph_builder.add_node("synthesizer", blog_node.synthesizer)
             graph_builder.add_node("feedback_collector", blog_node.feedback_collector)
-            graph_builder.add_node("revision_generator", blog_node.revision_generator)
+            graph_builder.add_node("file_generator", blog_node.file_generator) # Changed node name
 
             # Add edges
-            graph_builder.add_edge(START, "user_input")
+            graph_builder.set_entry_point("user_input") # Changed from START
             graph_builder.add_edge("user_input", "orchestrator")
             graph_builder.add_conditional_edges("orchestrator", lambda state: blog_node.assign_workers(state), ["llm_call"])
             graph_builder.add_edge("llm_call", "synthesizer")
             graph_builder.add_edge("synthesizer", "feedback_collector")
-            graph_builder.add_conditional_edges("feedback_collector", blog_node.route_feedback, {"revision_generator": "revision_generator", END: END})
-            graph_builder.add_edge("revision_generator", "synthesizer")  # Loop back to synthesize revised sections
+            graph_builder.add_conditional_edges(
+                "feedback_collector",
+                blog_node.route_feedback,  # Use instance method
+                {
+                    "orchestrator": "orchestrator",
+                    "file_generator": "file_generator" # Changed from "revision_generator"
+                }
+            )
+            # Removed the edge from revision_generator to synthesizer
+
+            # Add edge from file_generator to END
+            graph_builder.add_edge("file_generator", END)
 
             # Compile with interrupts at review nodes
             return graph_builder.compile(interrupt_after=["feedback_collector"], checkpointer=self.memory)
         except Exception as e:
-            logger.error(f"Error building blog generation graph: {e}")
-            return None
+            print(f"{e}")
 
     def setup_graph(self, usecase):
         """

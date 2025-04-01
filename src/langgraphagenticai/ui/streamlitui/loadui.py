@@ -4,7 +4,7 @@ from datetime import date
 import graphviz
 from langchain_core.messages import AIMessage, HumanMessage
 from src.langgraphagenticai.ui.uiconfigfile import Config
-from src.langgraphagenticai.graph.graph_builder import GraphBuilder  
+from src.langgraphagenticai.graph.graph_builder import GraphBuilder
 
 class LoadStreamlitUI:
     def __init__(self):
@@ -36,7 +36,7 @@ class LoadStreamlitUI:
             # Edges
             dot.edge("START", "chatbot")
             dot.edge("chatbot", "END")
-        
+
         elif usecase == "Chatbot with Tool":
             # Nodes
             dot.node("START", "START")
@@ -48,34 +48,31 @@ class LoadStreamlitUI:
             dot.edge("chatbot", "tools", label="tools_condition", style="dashed", constraint="false")
             dot.edge("tools", "chatbot", label="return")
             dot.edge("chatbot", "END", label="no tools", style="dashed", constraint="false")
-        
+
         elif usecase == "Blog Generation":
-            # Nodes
+        # Nodes
             dot.node("START", "START")
             dot.node("user_input", "User Input")
-            dot.node("outline_generator", "Outline Generator")
-            dot.node("outline_review", "Outline Review\n(Human)", shape="diamond")
-            dot.node("web_search", "Web Search")
-            dot.node("draft_generator", "Draft Generator")
-            dot.node("draft_review", "Draft Review\n(Human)", shape="diamond")
-            dot.node("revision_generator", "Revision Generator")
+            dot.node("orchestrator", "Orchestrator")
+            dot.node("llm_call", "LLM Call")
+            dot.node("synthesizer", "Synthesizer")
+            dot.node("feedback_collector", "Feedback Collector", shape="diamond")
+            dot.node("file_generator", "File Generator") # Changed from markdown_file_generator
             dot.node("END", "END")
-            # Static Edges
+
+            # Edges
             dot.edge("START", "user_input")
-            dot.edge("user_input", "outline_generator")
-            dot.edge("outline_generator", "outline_review")
-            dot.edge("web_search", "draft_generator")
-            dot.edge("revision_generator", "draft_review")
-            # Conditional Edges for outline_review
-            dot.edge("outline_review", "draft_generator", label="approved", style="dashed", color="green")
-            dot.edge("outline_review", "outline_generator", label="add details", style="dashed", color="orange", constraint="false")
-            # Conditional Edges for draft_generator
-            dot.edge("draft_generator", "web_search", label="needs facts", style="dashed", color="blue")
-            dot.edge("draft_generator", "draft_review", label="has facts", style="dashed", color="green")
-            # Conditional Edges for draft_review
-            dot.edge("draft_review", "END", label="approved", style="dashed", color="green")
-            dot.edge("draft_review", "revision_generator", label="add details", style="dashed", color="orange", constraint="false")
-        
+            dot.edge("user_input", "orchestrator")
+            dot.edge("orchestrator", "llm_call", label="assign_workers", style="dashed")
+            dot.edge("llm_call", "synthesizer")
+            dot.edge("synthesizer", "feedback_collector")
+
+            # Conditional edges from feedback_collector
+            dot.edge("feedback_collector", "orchestrator", label="revise", style="dashed", color="orange")
+            dot.edge("feedback_collector", "file_generator", label="accept", style="dashed", color="green")
+            dot.edge("file_generator", "END")
+
+
         # Note: Coding Peer Review not implemented in GraphBuilder, so skipping it
         else:
             dot.node("START", "START")
@@ -140,7 +137,7 @@ class LoadStreamlitUI:
                 st.session_state["GOOGLE_API_KEY"] = self.user_controls["GOOGLE_API_KEY"]
                 if not self.user_controls["GOOGLE_API_KEY"]:
                     st.warning("⚠️ Please enter your Google API key to proceed.")
-            
+
             elif self.user_controls["selected_llm"] == "OpenAI":
                 model_options = self.config.get_openai_model_options()
                 self.user_controls["selected_openai_model"] = st.selectbox(
@@ -155,8 +152,6 @@ class LoadStreamlitUI:
                 st.session_state["OPENAI_API_KEY"] = self.user_controls["OPENAI_API_KEY"]
                 if not self.user_controls["OPENAI_API_KEY"]:
                     st.warning("⚠️ Please enter your OpenAI API key to proceed.")
-
-
 
             self.user_controls["selected_usecase"] = st.selectbox(
                 "Select Use Case", usecase_options, help="Choose the application use case."

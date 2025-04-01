@@ -2,7 +2,13 @@ import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 import logging
 import json
+from datetime import datetime
 
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the logging level to DEBUG
+    format="\n**********\n%(levelname)s | %(asctime)s | %(message)s\n**********\n",  # Custom format with \n and *
+    datefmt="%Y-%m-%d %H:%M:%S"  # Date format for better readability
+)
 logger = logging.getLogger(__name__)
 
 class DisplayResultStreamlit:
@@ -22,7 +28,8 @@ class DisplayResultStreamlit:
             "blog_requirements_collected": False,
             "content_displayed": False,
             "graph_state": None,
-            "current_session_id": None
+            "current_session_id": None,
+            "feedback": ""
         }
         for key, value in defaults.items():
             if key not in st.session_state:
@@ -50,7 +57,17 @@ class DisplayResultStreamlit:
     def process_user_input(self):
         """Process user input and display results based on the use case."""
         if self.usecase == "Blog Generation":
-            self._handle_blog_generation()
+            if st.session_state.get("blog_generation_complete"):
+                final_report = st.session_state.get("blog_content")
+                if final_report:
+                    with st.chat_message("assistant"):
+                        st.markdown("### Final Generated Blog Content")
+                        st.markdown(self._format_blog_content(final_report))
+                    st.success("Blog generation complete!")
+                # Optionally reset the flag if you want to start a new generation
+                # st.session_state.blog_generation_complete = False
+            else:
+                self._handle_blog_generation()
         else:
             self._handle_chatbot_input()
 
@@ -102,10 +119,10 @@ class DisplayResultStreamlit:
     def _process_feedback(self):
         latest_state = st.session_state.graph_state.values if st.session_state.graph_state else {}
         logger.info(f"Latest state in _process_feedback: {latest_state}")
-        
+
         # Look for blog content in the right places
         blog_content = latest_state.get("final_report", "")
-        
+
         # Display the content if it hasn't been displayed yet
         if blog_content and not st.session_state.content_displayed:
             with st.chat_message("assistant"):
@@ -117,13 +134,13 @@ class DisplayResultStreamlit:
         # Check if we're at the feedback collection node
         current_node = st.session_state.graph_state.next[0] if st.session_state.graph_state.next else None
         logger.info(f"Current node in _process_feedback: {current_node}")
-        
+
         if current_node == "feedback_collector":
             # Only show feedback UI if we haven't already shown it
             if not st.session_state.get("feedback_ui_shown", False):
                 st.write("### Review the generated content:")
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
                     if st.button("Approve", key="content_approve"):
                         feedback = {
@@ -131,11 +148,11 @@ class DisplayResultStreamlit:
                             "comments": "Content approved."
                         }
                         self._submit_feedback(feedback)
-                        
+
                 with col2:
                     with st.expander("Request Revisions"):
-                        comments = st.text_area("Provide revision comments:", 
-                                            placeholder="Please explain what changes you would like to see.")
+                        comments = st.text_area("Provide revision comments:",
+                                                placeholder="Please explain what changes you would like to see.")
                         if st.button("Submit Revisions"):
                             if not comments:
                                 st.error("Please provide revision comments.")
@@ -145,7 +162,7 @@ class DisplayResultStreamlit:
                                     "comments": comments
                                 }
                                 self._submit_feedback(feedback)
-                
+
                 st.session_state.feedback_ui_shown = True
 
     def _submit_feedback(self, feedback):
@@ -156,7 +173,7 @@ class DisplayResultStreamlit:
             st.session_state.waiting_for_feedback = False
             st.session_state.content_displayed = False
             st.session_state.feedback_ui_shown = False  # Reset this flag
-            
+
             # Continue processing with the feedback
             self._process_graph_stream(HumanMessage(content=feedback_json))
             logger.info(f"Feedback submitted: {feedback}")
@@ -178,53 +195,51 @@ class DisplayResultStreamlit:
                 input_data = {"messages": [input_message]} if input_message else None
                 for event in (self.graph.stream(input_data, self.config) if input_data else self.graph.stream(None, self.config)):
                     logger.info(f"\nGraph event: {event}\n")
-                    
-                    # Check for blog content in each event
+
+                    # Check for blog content and messages in events (existing logic)
                     for node, state in event.items():
-                        # Print the full state for debugging
                         logger.info(f"\nState from {node}: {state}\n")
-                        
-                        if "final_report" in state:
-                            # Store the final report in session state for access in _process_feedback
-                            if not st.session_state.get("blog_content"):
-                                st.session_state.blog_content = state["final_report"]
-                                logger.info(f"Stored blog content in session state: {state['final_report'][:30]}...")
-                        
+                        if "final_report" in state and not st.session_state.get("blog_content"):
+                            st.session_state.blog_content = state["final_report"]
+                            logger.info(f"Stored blog content in session state: {state['final_report'][:30]}...")
                         if "messages" in state and state["messages"]:
                             with st.chat_message("assistant"):
                                 content = state["messages"][-1].content
                                 st.markdown(content)
                             self.session_history.add_ai_message(content)
-                    
+
                     graph_state = self.graph.get_state(self.config)
                     logger.info(f"\nGraph state next: {graph_state.next}\n")
-                    
+
                     if graph_state.next and graph_state.next[0] == "feedback_collector":
                         st.session_state.waiting_for_feedback = True
                         st.session_state.graph_state = graph_state
                         logger.info("\nPaused for feedback collection\n")
-                        st.rerun()  # Force UI update to ensure feedback buttons appear
+                        st.rerun()
+                        break
+                    elif graph_state.next and graph_state.next[0] == "file_generator":
+                        st.session_state.blog_generation_complete = True
+                        st.rerun() # Trigger a UI update
                         break
             except Exception as e:
                 logger.error(f"\nError in graph streaming: {e}\n")
                 st.error(f"\nError processing workflow: {e}\n")
 
+
     def _display_result(self, response):
         logger.info(f"\nDisplay result response: {response}\n")
-        
+
         if self.usecase == "Blog Generation":
             messages = response.get("messages", [])
             blog_content = response.get("final_report", "")
-            
+
             # If we have messages but no blog content, just show the message
             if messages and not blog_content:
                 content = messages[-1].content
                 st.markdown(content)
-                
+
             # No need to display blog content here - it will be handled by _process_feedback
-            # This prevents duplicate displays
-
-
+            # or when the graph reaches the file_generator node.
 
         elif self.usecase == "Basic Chatbot":
             # Kept exactly as in original code
@@ -243,7 +258,7 @@ class DisplayResultStreamlit:
         """Format blog content for better display in Streamlit."""
         if not content:
             return ""
-            
+
         sections = content.strip().split("\n\n")
         formatted = "\n\n".join(
             f"\n\n{s.strip()}" if s.startswith("#") else s.strip()
