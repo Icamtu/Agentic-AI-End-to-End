@@ -105,6 +105,17 @@ class LoadStreamlitUI:
             llm_options = self.config.get_llm_options()
             usecase_options = self.config.get_usecase_options()
 
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            GROQ_API_KEY=os.getenv("GROQ_API_KEY") or st.session_state.get("GROQ_API_KEY", "")
+            GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY") or st.session_state.get("GOOGLE_API_KEY", "")
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY") or st.session_state.get("OPENAI_API_KEY", "")
+            TAVILY_API_KEY=os.getenv("TAVILY_API_KEY") or st.session_state.get("TAVILY_API_KEY", "")
+            
+
+
             self.user_controls["selected_llm"] = st.selectbox(
                 "Select LLM", llm_options, help="Choose the language model provider to use."
             )
@@ -117,7 +128,7 @@ class LoadStreamlitUI:
                 self.user_controls["GROQ_API_KEY"] = st.text_input(
                     "GROQ API Key",
                     type="password",
-                    value=st.session_state.get("GROQ_API_KEY", ""),
+                    value=GROQ_API_KEY,
                     help="Enter your Groq API key (see https://console.groq.com/keys)."
                 )
                 st.session_state["GROQ_API_KEY"] = self.user_controls["GROQ_API_KEY"]
@@ -131,7 +142,7 @@ class LoadStreamlitUI:
                 self.user_controls["GOOGLE_API_KEY"] = st.text_input(
                     "Google API Key",
                     type="password",
-                    value=st.session_state.get("GOOGLE_API_KEY", ""),
+                    value=GOOGLE_API_KEY,
                     help="Enter your Google API key (see https://console.cloud.google.com/apis/credentials)."
                 )
                 st.session_state["GOOGLE_API_KEY"] = self.user_controls["GOOGLE_API_KEY"]
@@ -146,7 +157,7 @@ class LoadStreamlitUI:
                 self.user_controls["OPENAI_API_KEY"] = st.text_input(
                     "OpenAI API Key",
                     type="password",
-                    value=st.session_state.get("OPENAI_API_KEY", ""),
+                    value=OPENAI_API_KEY,
                     help="Enter your OpenAI API key (see https://platform.openai.com/account/api-keys)."
                 )
                 st.session_state["OPENAI_API_KEY"] = self.user_controls["OPENAI_API_KEY"]
@@ -161,7 +172,7 @@ class LoadStreamlitUI:
                 self.user_controls["TAVILY_API_KEY"] = st.text_input(
                     "Tavily API Key",
                     type="password",
-                    value=st.session_state.get("TAVILY_API_KEY", ""),
+                    value=TAVILY_API_KEY,
                     help="Enter your Tavily API key (see https://app.tavily.com/home)."
                 )
                 os.environ["TAVILY_API_KEY"] = self.user_controls["TAVILY_API_KEY"]
