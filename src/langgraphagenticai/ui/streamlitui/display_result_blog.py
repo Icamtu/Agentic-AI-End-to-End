@@ -216,8 +216,7 @@ class DisplayBlogResult:
                             st.write("**Requested Changes:**")
                             st.write(comments)
                             return {"approved": False, "comments": comments}
-                        else:
-                            st.error("Please provide revision comments.")
+                       
             
             return None
 
@@ -247,11 +246,7 @@ class DisplayBlogResult:
                     if "initial_draft" in state and state["initial_draft"]:
                         with st.expander("Stage 2: Generated Draft", expanded=True):
                             st.markdown(state["initial_draft"])
-                            submit_button = st.button("Next")
-                            if submit_button:
-                                st.session_state.current_stage = "feedback"
-                                st.session_state.content_displayed = True
-                                break
+                           
                     
 
                 # Handle graph state transitions
