@@ -15,7 +15,7 @@ from src.langgraphagenticai.ui.streamlitui.display_result import DisplayResultSt
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
 )
 logger = logging.getLogger(__name__)
 

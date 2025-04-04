@@ -6,7 +6,7 @@ import json
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
 )
 logger = logging.getLogger(__name__)
 
@@ -46,13 +46,14 @@ class DisplayBlogResult:
             if message:
                 st.session_state.blog_requirements_collected = True
                 st.session_state.current_stage = "processing"
-                # st.rerun()
+                st.rerun()
         
         # Stage 2: Process Graph (Initial)
         elif st.session_state.current_stage == "processing":
             if st.session_state.blog_requirements_collected and not st.session_state.content_displayed:
                 with st.spinner("Generating your blog content..."):
                     self.process_graph_events(self._get_last_message())
+                st.rerun()
                    
         
         # Stage 3: Display Content
@@ -60,6 +61,7 @@ class DisplayBlogResult:
             if st.session_state.blog_content:
                 self.display_blog_content(st.session_state.blog_content)
                 st.session_state.current_stage = "feedback"
+                st.rerun()
         
         # Stage 4: Feedback
         elif st.session_state.current_stage == "feedback":
@@ -68,7 +70,7 @@ class DisplayBlogResult:
                 st.session_state.feedback = feedback
                 st.session_state.feedback_submitted = True
                 st.session_state.current_stage = "revision_processing"
-                # st.rerun()
+                st.rerun()
         
         # Stage 5: Process Revisions
         elif st.session_state.current_stage == "revision_processing":
@@ -203,22 +205,22 @@ class DisplayBlogResult:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("✅ Approve Content", key="approve_button"):
-                    st.success("Content approval submitted. Processing...") # Changed message
-                    # Removed direct stage change here. Let the graph handle completion.
+                    logger.info("Content approved by user.")
+                    st.success("Content approval submitted. Processing...") 
                     return {"approved": True, "comments": "Content approved."}
 
             with col2:
-                # Handle revision request
-                    comments = st.text_area("Revision comments:",value="Add some references to the content",
-                                        placeholder="Please explain what changes you would like to see.",
-                                        key="revision_comments")
-                    if st.button("Submit Revision Request", key="revision_button"):
-                        if comments:
-                            st.info("Revision request submitted")
-                            st.write("**Requested Changes:**")
-                            st.write(comments)
-                            logger.info(f"\nRevision request: {comments}\n")
-                            return {"approved": False, "comments": comments}
+                
+                comments = st.text_area("Revision comments:",value="Add some references to the content",
+                                    placeholder="Please explain what changes you would like to see.",
+                                    key="revision_comments")
+                if st.button("Submit Revision Request", key="revision_button"):
+                    if comments:
+                        st.info("Revision request submitted")
+                        st.write("**Requested Changes:**")
+                        st.write(comments)
+                        logger.info(f"\nRevision request: {comments}\n")
+                        return {"approved": False, "comments": comments}
                        
             
             return None #return None if no button is pressed
@@ -240,52 +242,49 @@ class DisplayBlogResult:
                 # Process event data
                 for node, state in event.items():
                     logger.info(f"Processing event for node: {node}, state: {state}")
+                    
+                      # Specifically handle interrupt events
+                    if node == "__interrupt__":
+                        logger.info("Interrupt event received - transitioning to feedback stage")
+                        st.session_state.waiting_for_feedback = True
+                        st.session_state.current_stage = "feedback"
+                        progress_bar.progress(1.0)
+                        return
+                    
                     if isinstance(state, dict):
-                        if "initial_draft" in state:
+                                               
+                        if node == "synthesizer" and "initial_draft" in state:
+                            logger.info("Draft generated by synthesizer, displaying content")
                             st.session_state.blog_content = state["initial_draft"]
                             st.session_state.content_displayed = True  # Ensure this is set
-                        st.session_state.current_stage = "content" # Ensure this is set
-                        progress_bar.progress(1.0)
-                        st.success("✅ Blog content has been generated for review!")
-                        
-                    if "initial_draft" in state and state["initial_draft"]:
-                        with st.expander("Stage 2: Generated Draft", expanded=True):
-                            st.markdown(state["initial_draft"])
-                           
-                    # Check if the synthesizer node just finished to set stage for feedback
-                    # Check if the synthesizer node just finished to set stage for feedback
-                        # Check if the synthesizer node just finished to set stage for feedback
-                        if node == "synthesizer":
-                            logger.info("Synthesizer node finished, setting stage to feedback.")
+                            st.session_state.current_stage = "content" # Ensure this is set
+                            st.success("✅ Blog content has been generated for review!")
+                            with st.expander("Stage 2: Generated Draft", expanded=True):
+                                st.markdown(state["initial_draft"])
                             st.session_state.waiting_for_feedback = True
                             st.session_state.current_stage = "feedback"
-                            # Interrupt happens after synthesizer, so break the loop here to wait for UI feedback
-                            break
+                            progress_bar.progress(1.0)
 
-                        # Check if the file_generator node finished to set stage to complete
-                        # This might happen when processing feedback
-                        if node == "file_generator":
-                            logger.info("File generator node finished, setting stage to complete.")
-                            st.session_state.blog_generation_complete = True
-                            st.session_state.current_stage = "complete"
-                            st.session_state.processing_complete = True
-                            break  # Stop processing events after completion
+                    # Check if the file_generator node finished to set stage to complete
+                    # This might happen when processing feedback
+                    if node == "file_generator":
+                        logger.info("File generator node finished, setting stage to complete.")
+                        st.session_state.blog_generation_complete = True
+                        st.session_state.current_stage = "complete"
+                        st.session_state.processing_complete = True
+                        break  # Stop processing events after completion
 
-            # Check if the loop finished because of a break (interrupt or completion)
-            # If not, it means the graph naturally reached its END state after feedback processing
-            if st.session_state.current_stage != "feedback" and st.session_state.current_stage != "complete":
-                # If the stream finishes without interruption or explicit completion set,
-                # assume it finished normally after feedback processing.
-                graph_state = self.graph.get_state(self.config)
-                # Check if the graph is actually at the END state if possible (depends on LangGraph API)
-                # For now, assume completion if the loop finishes without breaking for feedback/completion
-                if not st.session_state.processing_complete:  # Avoid double setting
-                    logger.info(
-                        "Graph stream finished without explicit interrupt/completion, setting stage to complete."
-                    )
-                    st.session_state.blog_generation_complete = True
-                    st.session_state.current_stage = "complete"
-                    st.session_state.processing_complete = True
+            if not st.session_state.waiting_for_feedback and not st.session_state.processing_complete:
+                st.session_state.current_stage = "content"            
+            # if st.session_state.current_stage != "feedback" and st.session_state.current_stage != "complete":
+            #     graph_state = self.graph.get_state(self.config)
+            #     if not st.session_state.processing_complete:  # Avoid double setting
+            #         logger.info(
+            #             "Graph stream finished without explicit interrupt/completion, setting stage to complete."
+            #         )
+            #         st.session_state.blog_generation_complete = True
+            #         st.session_state.current_stage = "complete"
+            #         st.session_state.processing_complete = True
 
             # Ensure progress completes
             progress_bar.progress(1.0)

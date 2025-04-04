@@ -11,7 +11,7 @@ from typing import List
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
 )
 
 logger = logging.getLogger(__name__)
@@ -179,18 +179,28 @@ class BlogGenerationNode:
                 is_approved = feedback_data.get("approved", False)
                 comments = feedback_data.get("comments", "")
                 logger.info(f"Parsed feedback: approved={is_approved}, comments={comments}")
-                # ADDED LOGGING HERE
-                logger.info(f"feedback_collector: is_approved = {is_approved}")
-                return {
-                    "feedback": comments,
-                    "draft_approved": is_approved,
-                    "blog_content": state.get("final_report", "")
-                }
+                
+                # For approved content, set the final report from the initial draft
+                if is_approved:
+                    logger.info("Content approved, preparing final report")
+                    final_report = state.get("initial_draft", "")
+                    return {
+                        "feedback": comments,
+                        "draft_approved": True,  # Explicitly set to True
+                        "final_report": final_report  # Make sure to set the final report
+                    }
+                else:
+                    return {
+                        "feedback": comments,
+                        "draft_approved": False,
+                        "final_report": ""  # Empty for now, will be set after revisions
+                    }
             except json.JSONDecodeError:
                 logger.warning("Invalid feedback format; returning default values")
-                return {"feedback": "", "draft_approved": False}
+                return {"feedback": "", "draft_approved": False, "final_report": ""}
+        
         logger.info("No new feedback message found; returning default values")
-        return {"feedback": "", "draft_approved": False}
+        return {"feedback": "", "draft_approved": False, "final_report": ""}
 
     def file_generator(self, state: State) -> dict:
         """Generates the final report and ends the process."""
@@ -207,9 +217,11 @@ class BlogGenerationNode:
     # Conditional edge for feedback loop
     def route_feedback(self, state: State):
         """Route based on whether draft is approved."""
-        # ADDED LOGGING HERE
+        logger.info(f"route_feedback: draft_approved = {state.get('draft_approved', False)}")
         logger.info(f"route_feedback: state[\\'draft_approved\\'] = {state['draft_approved']}")
         if state["draft_approved"]== True:
             logger.info("Draft approved; routing to file_generator")
+            state["final_report"] = state.get("initial_draft", "") 
             return "file_generator" # Routes to file_generator if approved
+        logger.info("Draft not approved; routing back to orchestrator for revision")
         return "orchestrator" # Routes back to orchestrator if not approved
