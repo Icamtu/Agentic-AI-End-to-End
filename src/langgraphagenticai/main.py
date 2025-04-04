@@ -13,7 +13,10 @@ from src.langgraphagenticai.LLMS.chatgptllm import OpenaiLLM
 from src.langgraphagenticai.graph.graph_builder import GraphBuilder
 from src.langgraphagenticai.ui.streamlitui.display_result import DisplayResultStreamlit
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,  # Set the minimum log level to INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+)
 logger = logging.getLogger(__name__)
 
 store = {}

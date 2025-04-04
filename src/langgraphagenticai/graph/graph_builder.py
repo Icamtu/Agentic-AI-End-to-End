@@ -12,6 +12,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 import logging
 import json
 
+logging.basicConfig(
+    level=logging.INFO,  # Set the minimum log level to INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+)
 logger = logging.getLogger(__name__)
 
 class ReviewFeedback(BaseModel):
@@ -169,16 +173,16 @@ class GraphBuilder:
                 blog_node.route_feedback,  # Use instance method
                 {
                     "orchestrator": "orchestrator",
-                    "file_generator": "file_generator" # Changed from "revision_generator"
+                    "file_generator": "file_generator" 
                 }
             )
-            # Removed the edge from revision_generator to synthesizer
+            
 
-            # Add edge from file_generator to END
+            
             graph_builder.add_edge("file_generator", END)
 
-            # Compile with interrupts at review nodes
-            return graph_builder.compile(interrupt_after=["feedback_collector"], checkpointer=self.memory)
+            # Compile with interrupts after synthesizer to allow feedback collection
+            return graph_builder.compile(interrupt_after=["synthesizer"], checkpointer=self.memory)
         except Exception as e:
             print(f"{e}")
 

@@ -179,6 +179,8 @@ class BlogGenerationNode:
                 is_approved = feedback_data.get("approved", False)
                 comments = feedback_data.get("comments", "")
                 logger.info(f"Parsed feedback: approved={is_approved}, comments={comments}")
+                # ADDED LOGGING HERE
+                logger.info(f"feedback_collector: is_approved = {is_approved}")
                 return {
                     "feedback": comments,
                     "draft_approved": is_approved,
@@ -205,6 +207,9 @@ class BlogGenerationNode:
     # Conditional edge for feedback loop
     def route_feedback(self, state: State):
         """Route based on whether draft is approved."""
-        if state["draft_approved"]:
+        # ADDED LOGGING HERE
+        logger.info(f"route_feedback: state[\\'draft_approved\\'] = {state['draft_approved']}")
+        if state["draft_approved"]== True:
+            logger.info("Draft approved; routing to file_generator")
             return "file_generator" # Routes to file_generator if approved
         return "orchestrator" # Routes back to orchestrator if not approved
