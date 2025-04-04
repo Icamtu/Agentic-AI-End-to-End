@@ -56,13 +56,13 @@ class DisplayResultStreamlit:
                 if input_message:
                     st.session_state.blog_requirements_collected = True
                     blog_display.process_graph_events(input_message)
-            else:
-                if st.session_state.waiting_for_feedback:
-                    feedback = blog_display.process_feedback()
-                    if feedback:
-                        blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
-                else:
-                    blog_display.process_graph_events()
+            
+                    if st.session_state.waiting_for_feedback:
+                        feedback = blog_display.process_feedback()
+                        if feedback:
+                            blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
+                    else:
+                        blog_display.process_graph_events()
         else:
             self._handle_chatbot_input()
 

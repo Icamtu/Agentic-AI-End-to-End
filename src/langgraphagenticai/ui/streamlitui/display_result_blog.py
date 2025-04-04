@@ -87,6 +87,7 @@ class DisplayBlogResult:
 
     def collect_blog_requirements(self):
         """Collect blog requirements from the user."""
+        st.markdown("## Stage 1: Blog Requirements")
         with st.expander("Stage 1: Blog Requirements", expanded=False):
             st.info("ℹ️ Fill in the details below to generate your blog post")
             
@@ -192,36 +193,37 @@ class DisplayBlogResult:
         return "\n\n".join(formatted_paragraphs)
 
     def process_feedback(self):
-        st.markdown("## Stage 3: Review & Feedback")
-        st.info("ℹ️ Review the content and provide your feedback")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Approve Content", key="approve_button"):
-                st.success("Content has been approved!")
-                st.session_state.processing_complete = True
-                st.session_state.current_stage = "complete"
-                return {"approved": True, "comments": "Content approved."}
+        st.markdown("## Stage 3: Feedback")
+        with st.expander("Stage 3: Feedback", expanded=True):
+            st.info("ℹ️ Review the content and provide your feedback")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Approve Content", key="approve_button"):
+                    st.success("Content has been approved!")
+                    st.session_state.processing_complete = True
+                    st.session_state.current_stage = "complete"
+                    return {"approved": True, "comments": "Content approved."}
 
-        with col2:
-            with st.expander("Request Revisions", expanded=True):
-                comments = st.text_area("Revision comments:",
-                                      placeholder="Please explain what changes you would like to see.",
-                                      key="revision_comments")
-                if st.button("Submit Revision Request", key="revision_button"):
-                    if comments:
-                        st.info("Revision request submitted")
-                        st.write("**Requested Changes:**")
-                        st.write(comments)
-                        return {"approved": False, "comments": comments}
-                    else:
-                        st.error("Please provide revision comments.")
-        
-        return None
+            with col2:
+                # Handle revision request
+                    comments = st.text_area("Revision comments:",
+                                        placeholder="Please explain what changes you would like to see.",
+                                        key="revision_comments")
+                    if st.button("Submit Revision Request", key="revision_button"):
+                        if comments:
+                            st.info("Revision request submitted")
+                            st.write("**Requested Changes:**")
+                            st.write(comments)
+                            return {"approved": False, "comments": comments}
+                        else:
+                            st.error("Please provide revision comments.")
+            
+            return None
 
     def process_graph_events(self, input_message=None):
         try:
-            st.markdown("## Processing Your Request")
+            st.markdown("## Stage 2: Generated Draft")
             
             input_data = {"messages": [input_message]} if input_message else None
             progress_bar = st.progress(0)
@@ -243,7 +245,7 @@ class DisplayBlogResult:
                         st.success("✅ Blog content has been generated for review!")
                         
                     if "initial_draft" in state and state["initial_draft"]:
-                        with st.expander("Stage 2: Generated Draft", expanded=False):
+                        with st.expander("Stage 2: Generated Draft", expanded=True):
                             st.markdown(state["initial_draft"])
                             submit_button = st.button("Next")
                             if submit_button:
