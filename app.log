@@ -1,0 +1,81 @@
+2025-04-04 16:09:45,025 - src.langgraphagenticai.main - INFO - Session ID: 87c8c6c6-307a-4bab-81b8-b4a58044f35d, Thread ID: 7f8962d7-6eab-46db-9b01-37f7413a3c0f
+2025-04-04 16:09:46,468 - src.langgraphagenticai.main - INFO - Use case changed to: Basic Chatbot. Resetting session state.
+2025-04-04 16:09:53,620 - src.langgraphagenticai.main - INFO - Session ID: 87c8c6c6-307a-4bab-81b8-b4a58044f35d, Thread ID: 7f8962d7-6eab-46db-9b01-37f7413a3c0f
+2025-04-04 16:09:54,819 - src.langgraphagenticai.main - INFO - Use case changed to: Blog Generation. Resetting session state.
+2025-04-04 16:10:01,542 - src.langgraphagenticai.main - INFO - Session ID: 87c8c6c6-307a-4bab-81b8-b4a58044f35d, Thread ID: 7f8962d7-6eab-46db-9b01-37f7413a3c0f
+2025-04-04 16:10:02,776 - src.langgraphagenticai.nodes.blog_generation_node - INFO - Executing user_input with state: {'messages': [HumanMessage(content='Topic: ai\nObjective: Informative\nTarget Audience: Beginners\nTone & Style: Formal\nWord Count: 100\nStructure: ', additional_kwargs={}, response_metadata={}, id='af3f583e-4252-43b5-b80f-944367b73f3f')], 'completed_sections': []}
+2025-04-04 16:10:02,776 - src.langgraphagenticai.nodes.blog_generation_node - INFO - No structure provided; returning default structure
+2025-04-04 16:10:02,776 - src.langgraphagenticai.nodes.blog_generation_node - INFO - Parsed requirements: {'topic': 'ai', 'objective': 'Informative', 'target_audience': 'Beginners', 'tone_style': 'Formal', 'word_count': 100, 'structure': 'Introduction, Main Content, Conclusion', 'feedback': 'No feedback provided yet.'}
+2025-04-04 16:10:02,777 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #1
+2025-04-04 16:10:02,779 - src.langgraphagenticai.nodes.blog_generation_node - INFO - Executing orchestrator with state: {'messages': [HumanMessage(content='Topic: ai\nObjective: Informative\nTarget Audience: Beginners\nTone & Style: Formal\nWord Count: 100\nStructure: ', additional_kwargs={}, response_metadata={}, id='af3f583e-4252-43b5-b80f-944367b73f3f')], 'topic': 'ai', 'objective': 'Informative', 'target_audience': 'Beginners', 'tone_style': 'Formal', 'word_count': 100, 'structure': 'Introduction, Main Content, Conclusion', 'completed_sections': [], 'feedback': 'No feedback provided yet.'}
+2025-04-04 16:10:03,622 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-04 16:10:03,627 - src.langgraphagenticai.nodes.blog_generation_node - INFO - Report Sections: sections=[Section(name='Introduction', description='Overview of AI and its significance'), Section(name='Main Content', description='Exploring the applications and benefits of AI'), Section(name='Conclusion', description='Summary of the importance of AI and its future prospects')]
+2025-04-04 16:10:03,629 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #2
+2025-04-04 16:10:04,880 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-04 16:10:04,882 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #3
+2025-04-04 16:10:05,103 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-04 16:10:05,105 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #4
+2025-04-04 16:10:05,332 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2025-04-04 16:10:05,333 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #5
+2025-04-04 16:10:05,334 - src.langgraphagenticai.nodes.blog_generation_node - INFO - Synthesized report: ### Overview of AI and its significance
+
+Artificial Intelligence (AI) refers to the development of computer systems that can perform tasks that typically require human intelligence, such as learning, problem-solving, and decision-making. AI has been a subject of interest in the field of computer science for over six decades, with the term "Artificial Intelligence" being coined in 1956 by John McCarthy. Since then, AI has evolved rapidly, driven by advances in computing power, data storage, and machine learning algorithms.
+
+AI has become increasingly significant in recent years, with its applications extending beyond the realm of computer vision and natural language processing. AI has the potential to transform various industries, including healthcare, finance, transportation, and education, by improving efficiency, accuracy, and productivity. The significance of AI can be attributed to its ability to:
+
+* Automate repetitive and mundane tasks, freeing up human resources for more complex and creative work
+* Analyze large datasets to identify patterns and make predictions, enabling businesses to make data-driven decisions
+* Enhance customer experiences through personalized interactions and recommendations
+* Improve diagnosis and treatment outcomes in healthcare by analyzing medical images and patient data
+* Reduce costs and improve efficiency in various industries by optimizing processes and reducing errors
+
+The growing importance of AI has led to increased investment in AI research and development, with many countries and companies recognizing its potential to drive economic growth and improve societal outcomes. As AI continues to evolve, it is likely to have a profound impact on various aspects of our lives, from the way we work and communicate to the way we think and make decisions.
+
+---
+
+### Main Content
+
+#### AI in Healthcare
+
+Artificial intelligence (AI) has the potential to revolutionize the healthcare industry by improving patient outcomes, reducing costs, and enhancing the overall patient experience. AI-powered systems can analyze medical images, diagnose diseases, and even predict patient outcomes. For instance, AI-powered chatbots can assist in scheduling appointments, answering patient queries, and providing personalized health advice. Additionally, AI can help in developing personalized treatment plans, reducing the risk of medical errors, and improving patient engagement.
+
+#### AI in Finance
+
+AI is transforming the finance industry by enabling better risk management, improving customer service, and optimizing business processes. AI-powered systems can analyze vast amounts of financial data, identify patterns, and make predictions. For example, AI-powered chatbots can assist in customer service, providing personalized financial advice and helping customers with transactions. AI can also help in detecting fraudulent activities, predicting market trends, and optimizing investment portfolios.
+
+#### AI in Education
+
+AI has the potential to transform the education sector by providing personalized learning experiences, improving student engagement, and enhancing teacher productivity. AI-powered adaptive learning systems can analyze student performance, identify knowledge gaps, and provide tailored lessons. AI can also help in automating administrative tasks, such as grading and feedback, freeing up teachers to focus on more important tasks.
+
+#### AI in Customer Service
+
+AI-powered customer service systems can provide 24/7 support, answering customer queries and resolving issues in a timely and efficient manner. AI-powered chatbots can assist in customer service, providing personalized support and helping customers with transactions. AI can also help in analyzing customer feedback, identifying areas for improvement, and improving overall customer satisfaction.
+
+#### AI in Cybersecurity
+
+AI-powered cybersecurity systems can detect and prevent cyber attacks more effectively than traditional systems. AI can analyze vast amounts of data, identify patterns, and predict potential threats. AI-powered systems can also help in responding to incidents, containing damage, and improving overall cybersecurity posture.
+
+#### AI in Manufacturing
+
+AI is revolutionizing the manufacturing industry by improving efficiency, reducing costs, and enhancing product quality. AI-powered systems can analyze production data, predict maintenance needs, and optimize production processes. AI can also help in predicting demand, managing inventory, and improving supply chain management.
+
+#### AI in Transportation
+
+AI is transforming the transportation industry by improving safety, reducing congestion, and enhancing the overall passenger experience. AI-powered systems can analyze traffic patterns, predict traffic congestion, and optimize traffic flow. AI can also help in improving route planning, reducing fuel consumption, and enhancing autonomous vehicles.
+
+#### AI in Environmental Conservation
+
+AI has the potential to revolutionize environmental conservation by improving monitoring, prediction, and response to environmental disasters. AI-powered systems can analyze environmental data, predict weather patterns, and identify areas of environmental concern. AI can also help in detecting and tracking wildlife, monitoring water quality, and improving waste management.
+
+---
+
+### Conclusion
+#### Summary of the Importance of AI and its Future Prospects
+AI is a rapidly evolving field that has already shown significant potential in various industries and aspects of life. Its importance cannot be overstated, as it has the power to revolutionize the way we live, work, and interact with each other. The future prospects of AI are vast and exciting, with potential applications in areas such as healthcare, education, transportation, and more.
+
+AI has the ability to learn from data and improve over time, making it an invaluable tool for businesses and organizations. It can help automate tasks, making processes more efficient and freeing up human resources for more strategic and creative work. Additionally, AI has the potential to greatly enhance the quality of life for individuals with disabilities, providing them with greater independence and autonomy.
+
+The future of AI is bright, with ongoing advancements in areas such as machine learning, natural language processing, and computer vision. As AI becomes more integrated into our daily lives, we can expect to see significant improvements in areas such as healthcare, education, and transportation. With the potential to solve some of the world's most pressing problems, AI is an area that warrants continued investment and research.
+
+Overall, the importance of AI cannot be overstated, and its future prospects are incredibly exciting. As we continue to push the boundaries of what is possible with AI, we can expect to see significant improvements in our lives and the world around us.
+2025-04-04 16:10:05,336 - src.langgraphagenticai.ui.streamlitui.display_result_blog - INFO - Graph event received: #6

@@ -15,17 +15,22 @@ class Sections(BaseModel):
 class State(TypedDict):
 
     messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
-
+    #inputs
     topic: str  # Report topic from user input
     objective: str  # Objective from user input
     target_audience: str  # Target audience from user input
     tone_style: str  # Tone/style from user input
     word_count: int  # Word count from user input
     structure: str  # Structure from user input
+    feedback: str  # Human feedback
+
+    #for workers
     sections: List[Section]  # List of report sections
     completed_sections: Annotated[List[str], operator.add]  # All workers write to this key in parallel
+    
+    #for display in UI
+    initial_draft: str  # Initial draft of the report
     final_report: str  # Final report
-    feedback: str  # Human feedback
     draft_approved: bool  # Whether the draft is approved
 
 # Worker state

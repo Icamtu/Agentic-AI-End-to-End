@@ -3,7 +3,10 @@ from langchain_core.messages import HumanMessage
 import logging
 import markdown  # Added here to ensure it's available for HTML conversion
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,  # Set the minimum log level to INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
+)
 logger = logging.getLogger(__name__)
 
 class DisplayBlogResult:
@@ -38,16 +41,18 @@ class DisplayBlogResult:
         # Stage 1: Requirements Collection
         if st.session_state.current_stage == "requirements":
             message = self.collect_blog_requirements()
+            st.write(message)
             if message:
                 st.session_state.blog_requirements_collected = True
                 st.session_state.current_stage = "processing"
-                st.rerun()
+                # st.rerun()
         
         # Stage 2: Process Graph (Initial)
         elif st.session_state.current_stage == "processing":
             if st.session_state.blog_requirements_collected and not st.session_state.content_displayed:
                 with st.spinner("Generating your blog content..."):
                     self.process_graph_events(self._get_last_message())
+                   
         
         # Stage 3: Display Content
         elif st.session_state.current_stage == "content":
@@ -81,71 +86,72 @@ class DisplayBlogResult:
         return self.session_history[-1] if self.session_history else None
 
     def collect_blog_requirements(self):
-        st.markdown("## Stage 1: Blog Requirements")
-        st.info("ℹ️ Fill in the details below to generate your blog post")
-        
-        with st.form("blog_requirements_form"):
-            topic = st.text_input("Topic", placeholder="e.g., The Future of AI in Healthcare")
+        """Collect blog requirements from the user."""
+        with st.expander("Stage 1: Blog Requirements", expanded=False):
+            st.info("ℹ️ Fill in the details below to generate your blog post")
             
-            objective_options = ["Informative", "Persuasive", "Storytelling", "Other"]
-            objective = st.radio("Objective", objective_options)
-            custom_objective = None
-            if objective == "Other":
-                custom_objective = st.text_input("Specify Objective")
-            
-            audience_options = ["Beginners", "Experts", "General Audience", "Other"]
-            target_audience = st.radio("Target Audience", audience_options)
-            custom_audience = None
-            if target_audience == "Other":
-                custom_audience = st.text_input("Specify Target Audience")
-            
-            tone_options = ["Formal", "Casual", "Technical", "Engaging", "Other"]
-            tone_style = st.radio("Tone & Style", tone_options)
-            custom_tone = None
-            if tone_style == "Other":
-                custom_tone = st.text_input("Specify Tone & Style")
-            
-            word_count = st.number_input("Word Count", min_value=100, max_value=5000, value=1000, step=100)
-            structure = st.text_area("Structure", placeholder="e.g., Introduction, Key Points, Conclusion")
-            
-            submit_button = st.form_submit_button("Generate Blog Post")
-            
-            if submit_button:
-                # Handle custom inputs
-                if objective == "Other" and custom_objective:
-                    objective = custom_objective
-                if target_audience == "Other" and custom_audience:
-                    target_audience = custom_audience
-                if tone_style == "Other" and custom_tone:
-                    tone_style = custom_tone
+            with st.form("blog_requirements_form"):
+                topic = st.text_input("Topic",value= "The Future of AI in Healthcare", placeholder="e.g., The Future of AI in Healthcare")
                 
-                if not all([topic, objective, target_audience, tone_style]):
-                    st.error("Please fill in all required fields.")
-                    return None
+                objective_options = ["Informative", "Persuasive", "Storytelling", "Other"]
+                objective = st.radio("Objective", objective_options)
+                custom_objective = None
+                if objective == "Other":
+                    custom_objective = st.text_input("Specify Objective")
                 
-                # Create message and add to history
-                message = HumanMessage(content=f"Topic: {topic}\nObjective: {objective}\n"
-                                          f"Target Audience: {target_audience}\nTone & Style: {tone_style}\n"
-                                          f"Word Count: {word_count}\nStructure: {structure}")
-                self.session_history.append(message)
+                audience_options = ["Beginners", "Experts", "General Audience", "Other"]
+                target_audience = st.radio("Target Audience", audience_options)
+                custom_audience = None
+                if target_audience == "Other":
+                    custom_audience = st.text_input("Specify Target Audience")
                 
-                # Show summary
-                st.success("✅ Blog requirements submitted successfully!")
-                st.markdown("### Requirements Summary")
-                requirements_summary = {
-                    "Topic": topic,
-                    "Objective": objective,
-                    "Target Audience": target_audience,
-                    "Tone & Style": tone_style,
-                    "Word Count": f"{word_count} words",
-                    "Structure": structure or "Default"
-                }
+                tone_options = ["Formal", "Casual", "Technical", "Engaging", "Other"]
+                tone_style = st.radio("Tone & Style", tone_options)
+                custom_tone = None
+                if tone_style == "Other":
+                    custom_tone = st.text_input("Specify Tone & Style")
                 
-                for key, value in requirements_summary.items():
-                    st.write(f"**{key}:** {value}")
+                word_count = st.number_input("Word Count", min_value=100, max_value=5000, value=100, step=100)
+                structure = st.text_area("Structure", placeholder="e.g., Introduction, Key Points, Conclusion")
                 
-                return message
-        return None
+                submit_button = st.form_submit_button("Next")
+                
+                if submit_button:
+                    # Handle custom inputs
+                    if objective == "Other" and custom_objective:
+                        objective = custom_objective
+                    if target_audience == "Other" and custom_audience:
+                        target_audience = custom_audience
+                    if tone_style == "Other" and custom_tone:
+                        tone_style = custom_tone
+                    
+                    if not all([topic, objective, target_audience, tone_style]):
+                        st.error("Please fill in all required fields.")
+                        return None
+                    
+                    # Create message and add to history
+                    message = HumanMessage(content=f"Topic: {topic}\nObjective: {objective}\n"
+                                            f"Target Audience: {target_audience}\nTone & Style: {tone_style}\n"
+                                            f"Word Count: {word_count}\nStructure: {structure}")
+                    self.session_history.append(message)
+                    
+                    # Show summary
+                    st.success("✅ Blog requirements submitted successfully!")
+                    st.markdown("### Requirements Summary")
+                    requirements_summary = {
+                        "Topic": topic,
+                        "Objective": objective,
+                        "Target Audience": target_audience,
+                        "Tone & Style": tone_style,
+                        "Word Count": f"{word_count} words",
+                        "Structure": structure or "Default"
+                    }
+                    
+                    for key, value in requirements_summary.items():
+                        st.write(f"**{key}:** {value}")
+                    
+                    return message
+            return None
 
     def display_blog_content(self, content):
         st.markdown("## Stage 2: Generated Blog Content")
@@ -222,23 +228,29 @@ class DisplayBlogResult:
             
             for i, event in enumerate(self.graph.stream(input_data, self.config)):
                 logger.info(f"Graph event received: #{i+1}")
-                
+                              
                 # Update progress indicator
                 progress_value = min(i * 0.1, 0.9)  # Cap at 90% until complete
                 progress_bar.progress(progress_value)
                 
                 # Process event data
                 for node, state in event.items():
-                    if "final_report" in state:
-                        st.session_state.blog_content = state["final_report"]
+                    if "initial_draft" in state:
+                        st.session_state.blog_content = state["initial_draft"]
                         st.session_state.content_displayed = True  # Ensure this is set
                         st.session_state.current_stage = "content" # Ensure this is set
                         progress_bar.progress(1.0)
-                        st.success("✅ Blog content has been generated!")
+                        st.success("✅ Blog content has been generated for review!")
                         
-                    if "messages" in state and state["messages"]:
-                        with st.expander("Generation Progress", expanded=False):
-                            st.markdown(state["messages"][-1].content)
+                    if "initial_draft" in state and state["initial_draft"]:
+                        with st.expander("Stage 2: Generated Draft", expanded=False):
+                            st.markdown(state["initial_draft"])
+                            submit_button = st.button("Next")
+                            if submit_button:
+                                st.session_state.current_stage = "feedback"
+                                st.session_state.content_displayed = True
+                                break
+                    
 
                 # Handle graph state transitions
                 graph_state = self.graph.get_state(self.config)

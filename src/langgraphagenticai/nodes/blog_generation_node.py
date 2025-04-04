@@ -10,11 +10,9 @@ from typing import List
 
 
 logging.basicConfig(
-    level=logging.DEBUG,  # Set the logging level to DEBUG
-    format="\n**********\n%(levelname)s | %(asctime)s | %(message)s\n**********\n",  # Custom format with \n and *
-    datefmt="%Y-%m-%d %H:%M:%S"  # Date format for better readability
+    level=logging.INFO,  # Set the minimum log level to INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +166,9 @@ class BlogGenerationNode:
     def synthesizer(self, state: State) -> dict:
         """Synthesize full report from sections."""
         completed_sections = state["completed_sections"]
-        final_report = "\n\n---\n\n".join(completed_sections)
-        logger.info(f"Synthesized report: {final_report}")
-        return {"final_report": final_report}
+        initial_draft = "\n\n---\n\n".join(completed_sections)
+        logger.info(f"Synthesized report: {initial_draft}")
+        return {"initial_draft": initial_draft}
 
     def feedback_collector(self, state: State) -> dict:
         logger.info(f"Executing feedback_collector with state: {state}")

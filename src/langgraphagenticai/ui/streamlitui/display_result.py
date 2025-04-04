@@ -5,10 +5,10 @@ import json
 from datetime import datetime
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    format="\n**********\n%(levelname)s | %(asctime)s | %(message)s\n**********\n",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    level=logging.INFO,  # Set the minimum log level to INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # Format for log messages
 )
+
 logger = logging.getLogger(__name__)
 
 class DisplayResultStreamlit:
