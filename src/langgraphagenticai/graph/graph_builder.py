@@ -18,9 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class ReviewFeedback(BaseModel):
-    approved: bool = Field(description="Approval status: True for approved, False for rejected")
-    comments: str = Field(description="Reviewer comments")
+
 
 class GraphBuilder: 
     def __init__(self, llm):
@@ -182,8 +180,9 @@ class GraphBuilder:
             graph_builder.add_edge("file_generator", END)
 
             # Compile with interrupts after synthesizer to allow feedback collection
+            # In your initialization code
             compiled_graph = graph_builder.compile(
-                interrupt_after=["feedback_collector"],
+                interrupt_after=["synthesizer"],  # Interrupt after synthesizer instead of feedback_collector
                 checkpointer=self.memory
             )
             logger.info("Compiled graph edges: %s", compiled_graph.get_graph().edges)
