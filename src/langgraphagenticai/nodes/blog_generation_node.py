@@ -169,6 +169,8 @@ class BlogGenerationNode:
         initial_draft = "\n\n---\n\n".join(completed_sections)
         logger.info(f"Synthesized report: {initial_draft}")
         return {"initial_draft": initial_draft}
+    
+
 
     def feedback_collector(self, state: State) -> dict:
         logger.info(f"Executing feedback_collector with state: {state}")
@@ -180,30 +182,37 @@ class BlogGenerationNode:
                 comments = feedback_data.get("comments", "")
                 logger.info(f"Parsed feedback: approved={is_approved}, comments={comments}")
                 
-                # For approved content, set the final report from the initial draft
-                if is_approved:
-                    logger.info("Content approved, preparing final report")
-                    final_report = state.get("initial_draft", "")
-                    return {
-                        "feedback": comments,
-                        "draft_approved": True,  # Explicitly set to True
-                        "final_report": final_report  # Make sure to set the final report
-                    }
-                else:
-                    return {
-                        "feedback": comments,
-                        "draft_approved": False,
-                        "final_report": ""  # Empty for now, will be set after revisions
-                    }
+                result = {
+                    "feedback": comments,
+                    "draft_approved": is_approved,
+                    "final_report": state.get("initial_draft", "") if is_approved else ""
+                }
+                
+                # Ensure the state contains all required fields for routing
+                if "messages" not in result:
+                    result["messages"] = state.get("messages", [])
+                if "initial_draft" not in result:
+                    result["initial_draft"] = state.get("initial_draft", "")
+                    
+                logger.info(f"Returning feedback collector result: {result}")
+                return result
+                
             except json.JSONDecodeError:
-                logger.warning("Invalid feedback format; returning default values")
-                return {"feedback": "", "draft_approved": False, "final_report": ""}
+                logger.warning("Invalid feedback format")
         
-        logger.info("No new feedback message found; returning default values")
-        return {"feedback": "", "draft_approved": False, "final_report": ""}
+        default_result = {
+            "feedback": "",
+            "draft_approved": False,
+            "final_report": "",
+            "messages": state.get("messages", []),
+            "initial_draft": state.get("initial_draft", "")
+        }
+        logger.info(f"Returning default feedback collector result: {default_result}")
+        return default_result
 
     def file_generator(self, state: State) -> dict:
         """Generates the final report and ends the process."""
+        logger.info("Executing file_generator")
         final_report = state["final_report"]
         # In a real scenario, you would save this to a file
         logger.info(f"Final Report Generated:\n{final_report}")
@@ -217,11 +226,10 @@ class BlogGenerationNode:
     # Conditional edge for feedback loop
     def route_feedback(self, state: State):
         """Route based on whether draft is approved."""
-        logger.info(f"route_feedback: draft_approved = {state.get('draft_approved', False)}")
-        logger.info(f"route_feedback: state[\\'draft_approved\\'] = {state['draft_approved']}")
-        if state["draft_approved"]== True:
+        logger.info(f"route_feedback: draft_approved = {state.get('draft_approved', True)}")
+        
+        if state.get("draft_approved", True):
             logger.info("Draft approved; routing to file_generator")
-            state["final_report"] = state.get("initial_draft", "") 
-            return "file_generator" # Routes to file_generator if approved
+            return state["draft_approved"]
         logger.info("Draft not approved; routing back to orchestrator for revision")
-        return "orchestrator" # Routes back to orchestrator if not approved
+        return "orchestrator"

@@ -182,7 +182,12 @@ class GraphBuilder:
             graph_builder.add_edge("file_generator", END)
 
             # Compile with interrupts after synthesizer to allow feedback collection
-            return graph_builder.compile(interrupt_after=["synthesizer"], checkpointer=self.memory)
+            compiled_graph = graph_builder.compile(
+                interrupt_after=["feedback_collector"],
+                checkpointer=self.memory
+            )
+            logger.info("Compiled graph edges: %s", compiled_graph.get_graph().edges)
+            return compiled_graph
         except Exception as e:
             print(f"{e}")
 
