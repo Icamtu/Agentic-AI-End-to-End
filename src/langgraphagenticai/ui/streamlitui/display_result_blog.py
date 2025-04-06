@@ -5,8 +5,12 @@ import markdown  # Added here to ensure it's available for HTML conversion
 import json
 
 logging.basicConfig(
-    level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Logs to the console
+        logging.FileHandler("app.log")  # Logs to a file
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -34,9 +38,94 @@ class DisplayBlogResult:
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
-
     def render_ui(self):
-        """Main method to control the UI flow based on the current stage."""
+        # --- ADD THIS BLOCK NEAR THE START OF render_ui ---
+        # Check if approval was requested via callback
+        if st.session_state.get('approval_requested', True):
+            print("--- render_ui detected approval_requested ---")
+            del st.session_state.approval_requested # Reset flag
+            st.session_state.current_stage = "revision_processing"
+            st.session_state.waiting_for_feedback = False
+            self.process_graph_events(input_message="approved") # Call the function that handles graph invocation with approval signal
+            st.rerun() # Rerun to update UI immediately to processing stage
+
+        # Check if revision was requested via callback
+        elif st.session_state.get('revision_requested', False):
+             print("--- render_ui detected revision_requested ---")
+             del st.session_state.revision_requested # Reset flag
+             st.session_state.current_stage = "revision_processing"
+             st.session_state.waiting_for_feedback = False
+             logger.info(f"\n\n------Revision requested with feedback: {st.session_state.feedback_text}-----------\n\n")
+             st.session_state.feedback= st.session_state.get('feedback_text', "") # Get feedback text
+             self.process_graph_events() # Call the function that handles graph invocation
+             st.rerun() # Rerun to update UI immediately to processing stage
+        # --- END OF ADDED BLOCK ---
+
+
+        # Existing render_ui logic follows...
+        if 'current_stage' not in st.session_state:
+            st.session_state.current_stage = "requirements"
+            st.session_state.blog_requirements_met = False # Initialize flag
+
+        # Render based on stage (keep existing logic)
+        if st.session_state.current_stage == "requirements":
+             # Display requirements form (call existing function)
+             requirements_met = self.collect_blog_requirements()
+             if requirements_met:
+                  st.session_state.blog_requirements_met = True # Update flag
+                  st.session_state.current_stage = "generation" # Move to next stage
+                  st.rerun() # Rerun to start generation
+
+        elif st.session_state.current_stage == "generation":
+            st.info("Generating blog post...")
+            # If requirements were just met, start the graph stream
+            if st.session_state.blog_requirements_met:
+                 # Assuming initial message is prepared in collect_blog_requirements
+                 # or retrieve it from session state if stored there
+                 initial_message = st.session_state.get('initial_blog_message')
+                 if initial_message:
+                      self.process_graph_events(initial_message)
+                 else:
+                      st.error("Initial requirements message not found.")
+                 # Reset flag
+                 st.session_state.blog_requirements_met = False
+
+
+        elif st.session_state.current_stage == "feedback":
+            # Call the modified process_feedback (which now just renders)
+            self.process_feedback()
+            # The actual handling of feedback submission is done
+            # by the callbacks and the check block added at the start of render_ui
+
+        elif st.session_state.current_stage == "revision_processing":
+            st.info("Processing feedback...")
+            # This stage is entered after feedback callback sets the flag and render_ui reruns.
+            # process_graph_events was already called by the flag check block.
+            # We might need logic here to display streaming results during revision if process_graph_events uses stream.
+
+        elif st.session_state.current_stage == "completed":
+             st.success("Blog post generation completed!")
+             # Maybe display the final result if stored in session state
+             if 'final_blog_content' in st.session_state:
+                  st.markdown("### Final Blog Post")
+                  st.markdown(st.session_state.final_blog_content)
+                  # Add download button if applicable (using st.session_state.file_path)
+                  if 'file_path' in st.session_state and st.session_state.file_path:
+                     try:
+                         with open(st.session_state.file_path, "rb") as fp:
+                             st.download_button(
+                                 label="Download Blog Post",
+                                 data=fp,
+                                 file_name=os.path.basename(st.session_state.file_path),
+                                 mime="text/markdown" # Or appropriate mime type
+                             )
+                     except FileNotFoundError:
+                         st.error(f"Error: Generated file not found at {st.session_state.file_path}")
+                     except Exception as e:
+                         st.error(f"Error reading file for download: {e}")
+    """
+    def render_ui(self):
+        # Main method to control the UI flow based on the current stage.
         st.title("Blog Post Generator")
         
         # Stage 1: Requirements Collection
@@ -46,27 +135,26 @@ class DisplayBlogResult:
             if message:
                 st.session_state.blog_requirements_collected = True
                 st.session_state.current_stage = "processing"
-                st.rerun()
+                # st.rerun()
         
         # Stage 2: Process Graph (Initial)
         elif st.session_state.current_stage == "processing":
             if st.session_state.blog_requirements_collected and not st.session_state.content_displayed:
                 with st.spinner("Generating your blog content..."):
-                    self.process_graph_events(self._get_last_message())
-                st.rerun()
+                    pass     
+                # st.rerun()
                    
-        
         # Stage 3: Display Content
         elif st.session_state.current_stage == "content":
             if st.session_state.blog_content:
                 self.display_blog_content(st.session_state.blog_content)
                 st.session_state.current_stage = "feedback"
-                st.rerun()
+                # st.rerun()
         
         # Stage 4: Feedback
         elif st.session_state.current_stage == "feedback":
+            print("\n\n----current_stage is feedback ----\n\n")
             logger.info("Rendering UI for feedback stage.")
-            st.markdown("## Stage 3: Feedback")
             feedback = self.process_feedback()
             if feedback:
                 st.session_state.feedback = feedback
@@ -86,14 +174,12 @@ class DisplayBlogResult:
         
         # Final Stage: Completion
         elif st.session_state.current_stage == "complete":
+            logger.info("Rendering UI for final stage.")
             st.markdown("## Final Stage: Blog Generation Complete")
             st.success("🎉 Blog post has been generated and finalized!")
             self._display_download_options()
 
-    def _get_last_message(self):
-        """Helper to retrieve the most recent message from session history."""
-        return self.session_history[-1] if self.session_history else None
-
+    """
     def collect_blog_requirements(self):
         """Collect blog requirements from the user."""
         st.markdown("## Stage 1: Blog Requirements")
@@ -174,6 +260,7 @@ class DisplayBlogResult:
             
             # Option to copy content
             if st.button("📋 Copy to Clipboard", key="copy_content"):
+                print("----approved button clicked----")
                 st.code(content, language="markdown")
                 st.success("Content copied to clipboard! Use Ctrl+C to copy.")
             
@@ -200,35 +287,51 @@ class DisplayBlogResult:
                 formatted_paragraphs.append(p.strip())
         
         return "\n\n".join(formatted_paragraphs)
+    
+    def _handle_approved_click(self):
+        print("\n\n----approved button ON_CLICK call back executed----\n\n")
+        logger.info("----approved button ON_CLICK call back executed----")
+        st.session_state.approval_requested = True
+        st.session_state.feedback_type = "approved"
+    
+    def _handle_revised_click(self,feedback_text):
+        # check for comments to revise
+        if feedback_text:
+            print("\n\n----revised button ON_CLICK call back executed----\n\n")
+            logger.info("----revised button ON_CLICK call back executed----")
+            st.session_state.approval_requested = True
+            st.session_state.feedback_type = "revise"
+            st.session_state.feedback_text= feedback_text # store the feedback text
+            print(f"Feedback text: {feedback_text}")
+        else:
+            # Handel case where no comments are provided
+            st.warning("Please provide comments for revision.")
+            if "revsion_requested" in st.session_state:
+                del st.session_state.feedback_type
+
 
     def process_feedback(self):
+        print("\n\n----process_feedback function entered----\n\n")
+        logger.info("\n\n----process_feedback function entered (INFO)----\n\n")
         st.markdown("## Stage 3: Feedback")
         with st.expander("Stage 3: Feedback", expanded=True):
             st.info("ℹ️ Review the content and provide your feedback")
+            if 'response' in st.session_state and st.session_state.response:
+                st.markdown("### Generated Draft")
+                st.markdown(st.session_state.response)
+            else:
+                st.warning("Draft content not available for review.")
+
+            feedback_text = st.text_area("Revision comments:",value="Add some references to the content",
+                                placeholder="Please explain what changes you would like to see.",
+                                key="revision_comments_area")
             
             col1, col2 = st.columns(2)
             with col1:
-                logger.info("Rendering content approval options.")
-                if st.button("✅ Approve Content", key="approve_button"):
-                    logger.info("Content approved by user.")
-                    st.success("Content approval submitted. Processing...") 
-                    return {"approved": True, "comments": "Content approved."}
-
+                st.button("✅ Approve Content",on_click=self._handle_approved_click,key="blog_feedback_approve_button")
             with col2:
-                
-                comments = st.text_area("Revision comments:",value="Add some references to the content",
-                                    placeholder="Please explain what changes you would like to see.",
-                                    key="revision_comments")
-                if st.button("Submit Revision Request", key="revision_button"):
-                    if comments:
-                        st.info("Revision request submitted")
-                        st.write("**Requested Changes:**")
-                        st.write(comments)
-                        logger.info(f"\nRevision request: {comments}\n")
-                        return {"approved": False, "comments": comments}
-                       
-            
-            return None #return None if no button is pressed
+                st.button("Submit Revision Request",on_click=self._handle_revised_click, args=(feedback_text,),key="blog_feedback_revise_button")
+        
 
     def process_graph_events(self, input_message=None):
         try:
@@ -239,7 +342,7 @@ class DisplayBlogResult:
             
             for i, event in enumerate(self.graph.stream(input_data, self.config)):
                 logger.info(f"Graph event received: #{i+1}")
-                              
+                               
                 # Update progress indicator
                 progress_value = min(i * 0.1, 0.9)  # Cap at 90% until complete
                 progress_bar.progress(progress_value)
@@ -259,7 +362,7 @@ class DisplayBlogResult:
                         # return
                     
                     if isinstance(state, dict):
-                                               
+                                                
                         if node == "synthesizer" and "initial_draft" in state:
                             logger.info("Draft generated by synthesizer, displaying content")
                             st.session_state.blog_content = state["initial_draft"]
@@ -283,16 +386,7 @@ class DisplayBlogResult:
 
             if not st.session_state.waiting_for_feedback and not st.session_state.processing_complete:
                 st.session_state.current_stage = "content"            
-            # if st.session_state.current_stage != "feedback" and st.session_state.current_stage != "complete":
-            #     graph_state = self.graph.get_state(self.config)
-            #     if not st.session_state.processing_complete:  # Avoid double setting
-            #         logger.info(
-            #             "Graph stream finished without explicit interrupt/completion, setting stage to complete."
-            #         )
-            #         st.session_state.blog_generation_complete = True
-            #         st.session_state.current_stage = "complete"
-            #         st.session_state.processing_complete = True
-
+            
             # Ensure progress completes
             progress_bar.progress(1.0)
             
@@ -329,7 +423,7 @@ class DisplayBlogResult:
                         <style>
                             body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 0 auto; max-width: 800px; padding: 20px; }}
                             h1, h2, h3 {{ color: #333; }}
-                            a {{ color: #0066cc; }}
+                            a {{ color: "#0066cc"; }}
                         </style>
                     </head>
                     <body>
