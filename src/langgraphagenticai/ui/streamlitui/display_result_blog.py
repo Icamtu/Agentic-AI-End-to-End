@@ -65,15 +65,19 @@ class DisplayBlogResult:
         
         # Stage 4: Feedback
         elif st.session_state.current_stage == "feedback":
+            logger.info("Rendering UI for feedback stage.")
+            st.markdown("## Stage 3: Feedback")
             feedback = self.process_feedback()
             if feedback:
                 st.session_state.feedback = feedback
                 st.session_state.feedback_submitted = True
                 st.session_state.current_stage = "revision_processing"
-                st.rerun()
+                # st.rerun()
         
         # Stage 5: Process Revisions
         elif st.session_state.current_stage == "revision_processing":
+            st.markdown("## Stage 4: Processing Revisions")
+            st.info("ℹ️ Processing your feedback and generating revisions")
             if st.session_state.feedback_submitted and not st.session_state.processing_complete:
                 with st.spinner("Processing your feedback..."):
                     # Pass feedback as JSON
@@ -204,6 +208,7 @@ class DisplayBlogResult:
             
             col1, col2 = st.columns(2)
             with col1:
+                logger.info("Rendering content approval options.")
                 if st.button("✅ Approve Content", key="approve_button"):
                     logger.info("Content approved by user.")
                     st.success("Content approval submitted. Processing...") 
@@ -247,9 +252,11 @@ class DisplayBlogResult:
                     if node == "__interrupt__":
                         logger.info("Interrupt event received - transitioning to feedback stage")
                         st.session_state.waiting_for_feedback = True
+                        logger.info("Waiting for feedback from user.")
                         st.session_state.current_stage = "feedback"
+                        logger.info("Feedback stage initiated.")
                         progress_bar.progress(1.0)
-                        return
+                        # return
                     
                     if isinstance(state, dict):
                                                
@@ -261,8 +268,8 @@ class DisplayBlogResult:
                             st.success("✅ Blog content has been generated for review!")
                             with st.expander("Stage 2: Generated Draft", expanded=True):
                                 st.markdown(state["initial_draft"])
-                            st.session_state.waiting_for_feedback = True
-                            st.session_state.current_stage = "feedback"
+                            # st.session_state.waiting_for_feedback = True
+                            # st.session_state.current_stage = "feedback"
                             progress_bar.progress(1.0)
 
                     # Check if the file_generator node finished to set stage to complete
