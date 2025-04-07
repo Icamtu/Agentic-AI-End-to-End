@@ -54,20 +54,24 @@ class DisplayResultStreamlit:
             blog_display = DisplayBlogResult(self.graph, self.config)
             if not st.session_state.blog_requirements_collected:
                 input_message = blog_display.collect_blog_requirements()
-                logger.info(f"\n\n-----------------------------: Entered main Display Collected blog requirements:--------------------------------- {input_message}\n\n--------------------")
+                logger.info(f"\n\n-----------------------------: Entered main Display Collection of blog requirements:--------------------------------- {input_message}\n\n--------------------")
                 if input_message:
                     logger.info(f"\n\n-----------------------------: Entered main Display 1st If block input message:-----------------------------------------------------")
                     st.session_state.blog_requirements_collected = True
                     blog_display.process_graph_events(input_message)
-                    logger.info(f"\n\n-----------------------------end of 1st If block:-----------------------------------------------------")
-                    if st.session_state.waiting_for_feedback:
-                        logger.info(f"\n\n-----------------------------: Entered main Display 2nd If block input message:-----------------------------------------------------")
-                        feedback = blog_display.process_feedback()
-                        print(f"\n\n----------------Feedback: {feedback}--------------------------------------\n\n")
-                        if feedback:
-                            blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
-                    else:
-                        blog_display.process_graph_events()
+                    logger.info(f"\n\n-----------------------------end of 1st If block End of Blog Requirements:-----------------------------------------------------")
+            if st.session_state.waiting_for_feedback:
+                logger.info(f"\n\n-----------------------------: Entered main Display 2nd If block waiting_for_feedback:-----------------------------------------------------")
+                feedback = blog_display.process_feedback()
+                print(f"\n\n----------------Feedback before sending to graph & after process_feedback function : {feedback}--------------------------------------\n\n")
+                if feedback:
+                    print(f"\n\n----------------1 st if feedback before sending to graph : {feedback}--------------------------------------\n\n")
+                    blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
+                elif st.session_state.get('feedback_result'): #check if feedback result is in session state.
+                    print(f"\n\n----------------2 nd if feedback before sending to graph : {st.session_state['feedback_result']}--------------------------------------\n\n")
+                    blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'])))
+                else:
+                    blog_display.process_graph_events()
         else:
             self._handle_chatbot_input()
 
