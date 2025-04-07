@@ -24,7 +24,6 @@ LangGraphProject is an end-to-end agentic AI project designed to demonstrate the
 
 - **Basic Chatbot:** Develop a conversational interface to handle basic inquiries.
 - **Chatbot with Tools:** Integrate various tools and APIs to extend chatbot functionalities.
-- **Graph-Based Data Structures:** Implement and manipulate graph data structures to represent relationships and connections.
 - **Autonomous Agents:** Develop AI agents capable of performing tasks without human intervention.
 - **End-to-End Pipeline:** Showcase a complete workflow from data ingestion to insight generation.
 
@@ -43,7 +42,7 @@ pip install -r requirements.txt
 Run the main script to start the project:
 
 ```bash
-python main.py
+python app.py
 ```
 
 ## Contributing

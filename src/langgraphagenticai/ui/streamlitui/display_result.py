@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 import logging
 import json
 from datetime import datetime
+from .display_result_blog import DisplayBlogResult
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level to INFO
@@ -49,15 +50,18 @@ class DisplayResultStreamlit:
     def process_user_input(self):
         """Process user input and display results based on the use case."""
         if self.usecase == "Blog Generation":
-            from .display_result_blog import DisplayBlogResult
+            
             blog_display = DisplayBlogResult(self.graph, self.config)
             if not st.session_state.blog_requirements_collected:
                 input_message = blog_display.collect_blog_requirements()
+                logger.info(f"\n\n-----------------------------: Entered main Display Collected blog requirements:--------------------------------- {input_message}\n\n--------------------")
                 if input_message:
+                    logger.info(f"\n\n-----------------------------: Entered main Display 1st If block input message:-----------------------------------------------------")
                     st.session_state.blog_requirements_collected = True
                     blog_display.process_graph_events(input_message)
-            
+                    logger.info(f"\n\n-----------------------------end of 1st If block:-----------------------------------------------------")
                     if st.session_state.waiting_for_feedback:
+                        logger.info(f"\n\n-----------------------------: Entered main Display 2nd If block input message:-----------------------------------------------------")
                         feedback = blog_display.process_feedback()
                         if feedback:
                             blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))

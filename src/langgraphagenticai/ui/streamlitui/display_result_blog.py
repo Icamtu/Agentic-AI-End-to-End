@@ -38,148 +38,93 @@ class DisplayBlogResult:
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
-    def render_ui(self):
+    # def render_ui(self):
         # --- ADD THIS BLOCK NEAR THE START OF render_ui ---
-        # Check if approval was requested via callback
-        if st.session_state.get('approval_requested', True):
-            print("--- render_ui detected approval_requested ---")
-            del st.session_state.approval_requested # Reset flag
-            st.session_state.current_stage = "revision_processing"
-            st.session_state.waiting_for_feedback = False
-            self.process_graph_events(input_message="approved") # Call the function that handles graph invocation with approval signal
-            st.rerun() # Rerun to update UI immediately to processing stage
+        # # Check if approval was requested via callback
+        # if st.session_state.get('approval_requested', True):
+        #     print("--- render_ui detected approval_requested ---")
+        #     del st.session_state.approval_requested # Reset flag
+        #     st.session_state.current_stage = "revision_processing"
+        #     st.session_state.waiting_for_feedback = False
+        #     self.process_graph_events(input_message="approved") # Call the function that handles graph invocation with approval signal
+        #     st.rerun() # Rerun to update UI immediately to processing stage
 
-        # Check if revision was requested via callback
-        elif st.session_state.get('revision_requested', False):
-             print("--- render_ui detected revision_requested ---")
-             del st.session_state.revision_requested # Reset flag
-             st.session_state.current_stage = "revision_processing"
-             st.session_state.waiting_for_feedback = False
-             logger.info(f"\n\n------Revision requested with feedback: {st.session_state.feedback_text}-----------\n\n")
-             st.session_state.feedback= st.session_state.get('feedback_text', "") # Get feedback text
-             self.process_graph_events() # Call the function that handles graph invocation
-             st.rerun() # Rerun to update UI immediately to processing stage
-        # --- END OF ADDED BLOCK ---
+        # # Check if revision was requested via callback
+        # elif st.session_state.get('revision_requested', False):
+        #      print("--- render_ui detected revision_requested ---")
+        #      del st.session_state.revision_requested # Reset flag
+        #      st.session_state.current_stage = "revision_processing"
+        #      st.session_state.waiting_for_feedback = False
+        #      logger.info(f"\n\n------Revision requested with feedback:-------------\n--------------\n{st.session_state.feedback_text}-----------\n\n")
+        #      st.session_state.feedback= st.session_state.get('feedback_text', "") # Get feedback text
+        #      self.process_graph_events() # Call the function that handles graph invocation
+        #      st.rerun() # Rerun to update UI immediately to processing stage
+        # # --- END OF ADDED BLOCK ---
 
 
         # Existing render_ui logic follows...
-        if 'current_stage' not in st.session_state:
-            st.session_state.current_stage = "requirements"
-            st.session_state.blog_requirements_met = False # Initialize flag
+        # if 'current_stage' not in st.session_state:
+        #     st.session_state.current_stage = "requirements"
+        #     st.session_state.blog_requirements_collected = False # Initialize flag
 
-        # Render based on stage (keep existing logic)
-        if st.session_state.current_stage == "requirements":
-             # Display requirements form (call existing function)
-             requirements_met = self.collect_blog_requirements()
-             if requirements_met:
-                  st.session_state.blog_requirements_met = True # Update flag
-                  st.session_state.current_stage = "generation" # Move to next stage
-                  st.rerun() # Rerun to start generation
+        # # Render based on stage (keep existing logic)
+        # if st.session_state.current_stage == "requirements":
+        #      # Display requirements form (call existing function)
+        #      requirements_met = self.collect_blog_requirements()
+        #      if requirements_met:
+        #           st.session_state.blog_requirements_collected = True # Update flag
+        #           st.session_state.current_stage = "generation" # Move to next stage
+                #   st.rerun() # Rerun to start generation
 
-        elif st.session_state.current_stage == "generation":
-            st.info("Generating blog post...")
-            # If requirements were just met, start the graph stream
-            if st.session_state.blog_requirements_met:
-                 # Assuming initial message is prepared in collect_blog_requirements
-                 # or retrieve it from session state if stored there
-                 initial_message = st.session_state.get('initial_blog_message')
-                 if initial_message:
-                      self.process_graph_events(initial_message)
-                 else:
-                      st.error("Initial requirements message not found.")
-                 # Reset flag
-                 st.session_state.blog_requirements_met = False
+        # elif st.session_state.current_stage == "generation":
+        #     logger.info("\n-----------------\n---------------Blog generation stage entered.\n-----------------\n-------------------\n")
+        #     st.info("Generating blog post...")
+        #     # If requirements were just met, start the graph stream
+        #     if st.session_state.blog_requirements_collected:
+        #          # Assuming initial message is prepared in collect_blog_requirements
+        #          # or retrieve it from session state if stored there
+        #          initial_message = st.session_state.get('initial_blog_message')
+        #          if initial_message:
+        #               self.process_graph_events(initial_message)
+        #          else:
+        #               st.error("Initial requirements message not found.")
+        #          # Reset flag
+        #          st.session_state.blog_requirements_collected = False
 
 
-        elif st.session_state.current_stage == "feedback":
-            # Call the modified process_feedback (which now just renders)
-            self.process_feedback()
-            # The actual handling of feedback submission is done
-            # by the callbacks and the check block added at the start of render_ui
+        # elif st.session_state.current_stage == "feedback":
+        #     # Call the modified process_feedback (which now just renders)
+        #     self.process_feedback()
+        #     # The actual handling of feedback submission is done
+        #     # by the callbacks and the check block added at the start of render_ui
 
-        elif st.session_state.current_stage == "revision_processing":
-            st.info("Processing feedback...")
-            # This stage is entered after feedback callback sets the flag and render_ui reruns.
-            # process_graph_events was already called by the flag check block.
-            # We might need logic here to display streaming results during revision if process_graph_events uses stream.
+        # elif st.session_state.current_stage == "revision_processing":
+        #     st.info("Processing feedback...")
+        #     # This stage is entered after feedback callback sets the flag and render_ui reruns.
+        #     # process_graph_events was already called by the flag check block.
+        #     # We might need logic here to display streaming results during revision if process_graph_events uses stream.
 
-        elif st.session_state.current_stage == "completed":
-             st.success("Blog post generation completed!")
-             # Maybe display the final result if stored in session state
-             if 'final_blog_content' in st.session_state:
-                  st.markdown("### Final Blog Post")
-                  st.markdown(st.session_state.final_blog_content)
-                  # Add download button if applicable (using st.session_state.file_path)
-                  if 'file_path' in st.session_state and st.session_state.file_path:
-                     try:
-                         with open(st.session_state.file_path, "rb") as fp:
-                             st.download_button(
-                                 label="Download Blog Post",
-                                 data=fp,
-                                 file_name=os.path.basename(st.session_state.file_path),
-                                 mime="text/markdown" # Or appropriate mime type
-                             )
-                     except FileNotFoundError:
-                         st.error(f"Error: Generated file not found at {st.session_state.file_path}")
-                     except Exception as e:
-                         st.error(f"Error reading file for download: {e}")
-    """
-    def render_ui(self):
-        # Main method to control the UI flow based on the current stage.
-        st.title("Blog Post Generator")
-        
-        # Stage 1: Requirements Collection
-        if st.session_state.current_stage == "requirements":
-            message = self.collect_blog_requirements()
-            st.write(message)
-            if message:
-                st.session_state.blog_requirements_collected = True
-                st.session_state.current_stage = "processing"
-                # st.rerun()
-        
-        # Stage 2: Process Graph (Initial)
-        elif st.session_state.current_stage == "processing":
-            if st.session_state.blog_requirements_collected and not st.session_state.content_displayed:
-                with st.spinner("Generating your blog content..."):
-                    pass     
-                # st.rerun()
-                   
-        # Stage 3: Display Content
-        elif st.session_state.current_stage == "content":
-            if st.session_state.blog_content:
-                self.display_blog_content(st.session_state.blog_content)
-                st.session_state.current_stage = "feedback"
-                # st.rerun()
-        
-        # Stage 4: Feedback
-        elif st.session_state.current_stage == "feedback":
-            print("\n\n----current_stage is feedback ----\n\n")
-            logger.info("Rendering UI for feedback stage.")
-            feedback = self.process_feedback()
-            if feedback:
-                st.session_state.feedback = feedback
-                st.session_state.feedback_submitted = True
-                st.session_state.current_stage = "revision_processing"
-                # st.rerun()
-        
-        # Stage 5: Process Revisions
-        elif st.session_state.current_stage == "revision_processing":
-            st.markdown("## Stage 4: Processing Revisions")
-            st.info("ℹ️ Processing your feedback and generating revisions")
-            if st.session_state.feedback_submitted and not st.session_state.processing_complete:
-                with st.spinner("Processing your feedback..."):
-                    # Pass feedback as JSON
-                    feedback_json = json.dumps(st.session_state.feedback)
-                    self.process_graph_events(HumanMessage(content=feedback_json))
-        
-        # Final Stage: Completion
-        elif st.session_state.current_stage == "complete":
-            logger.info("Rendering UI for final stage.")
-            st.markdown("## Final Stage: Blog Generation Complete")
-            st.success("🎉 Blog post has been generated and finalized!")
-            self._display_download_options()
-
-    """
+        # elif st.session_state.current_stage == "completed":
+        #      st.success("Blog post generation completed!")
+        #      # Maybe display the final result if stored in session state
+        #      if 'final_blog_content' in st.session_state:
+        #           st.markdown("### Final Blog Post")
+        #           st.markdown(st.session_state.final_blog_content)
+        #           # Add download button if applicable (using st.session_state.file_path)
+        #           if 'file_path' in st.session_state and st.session_state.file_path:
+        #              try:
+        #                  with open(st.session_state.file_path, "rb") as fp:
+        #                      st.download_button(
+        #                          label="Download Blog Post",
+        #                          data=fp,
+        #                          file_name=os.path.basename(st.session_state.file_path),
+        #                          mime="text/markdown" # Or appropriate mime type
+        #                      )
+        #              except FileNotFoundError:
+        #                  st.error(f"Error: Generated file not found at {st.session_state.file_path}")
+        #              except Exception as e:
+        #                  st.error(f"Error reading file for download: {e}")
+   
     def collect_blog_requirements(self):
         """Collect blog requirements from the user."""
         st.markdown("## Stage 1: Blog Requirements")
@@ -230,7 +175,8 @@ class DisplayBlogResult:
                                             f"Target Audience: {target_audience}\nTone & Style: {tone_style}\n"
                                             f"Word Count: {word_count}\nStructure: {structure}")
                     self.session_history.append(message)
-                    
+                    st.session_state.blog_requirements_collected = True
+                    logger.info(f"\n\n--------------:Blog requirements collected:------------------\n{message.content}--------------------\n\n")
                     # Show summary
                     st.success("✅ Blog requirements submitted successfully!")
                     st.markdown("### Requirements Summary")
@@ -242,7 +188,7 @@ class DisplayBlogResult:
                         "Word Count": f"{word_count} words",
                         "Structure": structure or "Default"
                     }
-                    
+                    print(message)
                     for key, value in requirements_summary.items():
                         st.write(f"**{key}:** {value}")
                     
@@ -250,7 +196,7 @@ class DisplayBlogResult:
             return None
 
     def display_blog_content(self, content):
-        st.markdown("## Stage 2: Generated Blog Content")
+        st.markdown("## Final Generated Blog Content")
         st.info("ℹ️ Review the generated blog content below")
         
         with st.container():
