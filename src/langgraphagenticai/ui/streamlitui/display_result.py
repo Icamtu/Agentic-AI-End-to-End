@@ -101,17 +101,18 @@ class DisplayResultStreamlit:
                 feedback_result = blog_display.process_feedback()
                 # st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
 
-                # Check if feedback has been submitted
-                if st.session_state.get('feedback_result'):
-                    if st.session_state['feedback_result'].approved:
-                        final_draft=st.session_state.get("generated_draft")
+                # Check if feedback has been submitted in the current run
+                if feedback_result:
+                    if feedback_result.approved:
+                        final_draft = st.session_state.get("generated_draft")
                         st.session_state["blog_content"] = final_draft
                         st.session_state["generated_draft"] = None # Clear the draft after approval
                         st.session_state.current_stage = "complete"
                         st.rerun() # Trigger rerun to show completion
-                    else:   
+                    else:
                         st.session_state.current_stage = "processing_feedback"
                         st.rerun() # Trigger rerun to process revision request
+                
 
             elif st.session_state.current_stage == "processing_feedback":
                 logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:-----------------------------------------------------")

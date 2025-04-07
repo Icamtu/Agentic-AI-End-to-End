@@ -131,13 +131,15 @@ class DisplayBlogResult:
             st.session_state['feedback_result'] = ReviewFeedback(approved=False, comments=feedback_text)
             st.session_state.approval_requested = True
             st.session_state.feedback_type = "revise"
-            st.session_state.feedback_text = feedback_text  # store the feedback text (redundant with comments in feedback_result)
+            st.session_state.feedback_text = feedback_text
             print(f"Feedback text: {feedback_text}")
-        # else:
-        #     st.warning("Please provide comments for revision.")
-        #     if "revsion_requested" in st.session_state:
-        #         del st.session_state.feedback_type
-        #     st.session_state['feedback_result'] = None  # Reset if no comments
+            st.session_state.current_stage = "processing_feedback" # Set stage for processing feedback
+            st.rerun() # Add this line
+        else:
+            st.warning("Please provide comments for revision.")
+            if "revsion_requested" in st.session_state:
+                del st.session_state.feedback_type
+            st.session_state['feedback_result'] = None
 
     def process_feedback(self):
         print("\n\n----blog_display process_feedback function entered----\n\n")
