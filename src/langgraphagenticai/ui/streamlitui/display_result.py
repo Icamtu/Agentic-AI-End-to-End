@@ -63,6 +63,7 @@ class DisplayResultStreamlit:
                     if st.session_state.waiting_for_feedback:
                         logger.info(f"\n\n-----------------------------: Entered main Display 2nd If block input message:-----------------------------------------------------")
                         feedback = blog_display.process_feedback()
+                        print(f"\n\n----------------Feedback: {feedback}--------------------------------------\n\n")
                         if feedback:
                             blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
                     else:

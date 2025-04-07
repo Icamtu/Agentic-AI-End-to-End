@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage
 import logging
 import markdown  # Added here to ensure it's available for HTML conversion
 import json
+from pydantic import BaseModel, Field
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,6 +14,10 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+class ReviewFeedback(BaseModel):
+    approved: bool = Field(description="Approval status: True for approved, False for rejected")
+    comments: str = Field(description="Reviewer comments")
 
 class DisplayBlogResult:
     def __init__(self, graph, config):
@@ -195,24 +200,24 @@ class DisplayBlogResult:
                     return message
             return None
 
-    def display_blog_content(self, content):
-        st.markdown("## Final Generated Blog Content")
-        st.info("ℹ️ Review the generated blog content below")
+    # def display_blog_content(self, content):
+    #     st.markdown("## Final Generated Blog Content")
+    #     st.info("ℹ️ Review the generated blog content below")
         
-        with st.container():
-            st.markdown("### Generated Blog Content")
-            formatted_content = self._format_blog_content(content)
-            st.markdown(formatted_content)
+    #     with st.container():
+    #         st.markdown("### Generated Blog Content")
+    #         formatted_content = self._format_blog_content(content)
+    #         st.markdown(formatted_content)
             
-            # Option to copy content
-            if st.button("📋 Copy to Clipboard", key="copy_content"):
-                print("----approved button clicked----")
-                st.code(content, language="markdown")
-                st.success("Content copied to clipboard! Use Ctrl+C to copy.")
+    #         # Option to copy content
+    #         if st.button("📋 Copy to Clipboard", key="copy_content"):
+    #             print("----approved button clicked----")
+    #             st.code(content, language="markdown")
+    #             st.success("Content copied to clipboard! Use Ctrl+C to copy.")
             
-            st.session_state.content_displayed = True
+    #         st.session_state.content_displayed = True
 
-    def _format_blog_content(self, content):
+    # def _format_blog_content(self, content):
         if not content:
             return ""
         
@@ -235,48 +240,42 @@ class DisplayBlogResult:
         return "\n\n".join(formatted_paragraphs)
     
     def _handle_approved_click(self):
-        print("\n\n----approved button ON_CLICK call back executed----\n\n")
-        logger.info("----approved button ON_CLICK call back executed----")
-        st.session_state.approval_requested = True
-        st.session_state.feedback_type = "approved"
-    
-    def _handle_revised_click(self,feedback_text):
-        # check for comments to revise
+            print("\n\n----approved button ON_CLICK call back executed----\n\n")
+            logger.info("----approved button ON_CLICK call back executed----")
+            st.session_state['feedback_result'] = ReviewFeedback(approved=True, comments=st.session_state.get('revision_comments', ""))
+
+    def _handle_revised_click(self):
+        feedback_text = st.session_state.get('revision_comments', "")
         if feedback_text:
             print("\n\n----revised button ON_CLICK call back executed----\n\n")
             logger.info("----revised button ON_CLICK call back executed----")
+            st.session_state['feedback_result'] = ReviewFeedback(approved=False, comments=feedback_text)
             st.session_state.approval_requested = True
             st.session_state.feedback_type = "revise"
-            st.session_state.feedback_text= feedback_text # store the feedback text
+            st.session_state.feedback_text = feedback_text # store the feedback text (redundant with comments in feedback_result)
             print(f"Feedback text: {feedback_text}")
         else:
-            # Handel case where no comments are provided
             st.warning("Please provide comments for revision.")
             if "revsion_requested" in st.session_state:
                 del st.session_state.feedback_type
+            st.session_state['feedback_result'] = None # Reset if no comments
 
 
     def process_feedback(self):
         print("\n\n----process_feedback function entered----\n\n")
-        logger.info("\n\n----process_feedback function entered (INFO)----\n\n")
+        logger.info("---process_feedback function entered ----\n\n")
         st.markdown("## Stage 3: Feedback")
         with st.expander("Stage 3: Feedback", expanded=True):
-            st.info("ℹ️ Review the content and provide your feedback")
-            if 'response' in st.session_state and st.session_state.response:
-                st.markdown("### Generated Draft")
-                st.markdown(st.session_state.response)
-            else:
-                st.warning("Draft content not available for review.")
-
-            feedback_text = st.text_area("Revision comments:",value="Add some references to the content",
+            self.feedback_text = st.text_area("Revision comments:",value="Add some references to the content",
                                 placeholder="Please explain what changes you would like to see.",
                                 key="revision_comments_area")
-            
+            print(f"\n\n----------Feedback text: {self.feedback_text}---------------\n\n")
             col1, col2 = st.columns(2)
             with col1:
                 st.button("✅ Approve Content",on_click=self._handle_approved_click,key="blog_feedback_approve_button")
             with col2:
-                st.button("Submit Revision Request",on_click=self._handle_revised_click, args=(feedback_text,),key="blog_feedback_revise_button")
+                st.button("Submit Revision Request",on_click=self._handle_revised_click, args=(self.feedback_text,),key="blog_feedback_revise_button")
+        return st.session_state.get('feedback_result')
         
 
     def process_graph_events(self, input_message=None):
@@ -343,51 +342,51 @@ class DisplayBlogResult:
             st.session_state.current_stage = "requirements"
             st.warning("There was an error. Please try again.")
 
-    def _display_download_options(self):
-        """Display download options for the final blog content."""
-        if st.session_state.blog_content:
-            st.markdown("### Download Options")
+    # def _display_download_options(self):
+    #     """Display download options for the final blog content."""
+    #     if st.session_state.blog_content:
+    #         st.markdown("### Download Options")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    label="Download as Markdown (.md)",
-                    data=st.session_state.blog_content,
-                    file_name="blog_post.md",
-                    mime="text/markdown"
-                )
+    #         col1, col2 = st.columns(2)
+    #         with col1:
+    #             st.download_button(
+    #                 label="Download as Markdown (.md)",
+    #                 data=st.session_state.blog_content,
+    #                 file_name="blog_post.md",
+    #                 mime="text/markdown"
+    #             )
             
-            with col2:
-                try:
-                    # Convert to HTML for download (basic conversion)
-                    html_content = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="UTF-8">
-                        <title>Blog Post</title>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 0 auto; max-width: 800px; padding: 20px; }}
-                            h1, h2, h3 {{ color: #333; }}
-                            a {{ color: "#0066cc"; }}
-                        </style>
-                    </head>
-                    <body>
-                    {markdown.markdown(st.session_state.blog_content)}
-                    </body>
-                    </html>
-                    """
+    #         with col2:
+    #             try:
+    #                 # Convert to HTML for download (basic conversion)
+    #                 html_content = f"""
+    #                 <!DOCTYPE html>
+    #                 <html>
+    #                 <head>
+    #                     <meta charset="UTF-8">
+    #                     <title>Blog Post</title>
+    #                     <style>
+    #                         body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 0 auto; max-width: 800px; padding: 20px; }}
+    #                         h1, h2, h3 {{ color: #333; }}
+    #                         a {{ color: "#0066cc"; }}
+    #                     </style>
+    #                 </head>
+    #                 <body>
+    #                 {markdown.markdown(st.session_state.blog_content)}
+    #                 </body>
+    #                 </html>
+    #                 """
                     
-                    st.download_button(
-                        label="Download as HTML (.html)",
-                        data=html_content,
-                        file_name="blog_post.html",
-                        mime="text/html"
-                    )
-                except Exception as e:
-                    st.warning(f"HTML conversion not available: {str(e)}")
-                    logger.warning(f"HTML conversion failed: {e}")
+    #                 st.download_button(
+    #                     label="Download as HTML (.html)",
+    #                     data=html_content,
+    #                     file_name="blog_post.html",
+    #                     mime="text/html"
+    #                 )
+    #             except Exception as e:
+    #                 st.warning(f"HTML conversion not available: {str(e)}")
+    #                 logger.warning(f"HTML conversion failed: {e}")
 
-            # Show final content
-            with st.expander("View Final Content", expanded=False):
-                st.markdown(self._format_blog_content(st.session_state.blog_content))
+    #         # Show final content
+    #         with st.expander("View Final Content", expanded=False):
+    #             st.markdown(self._format_blog_content(st.session_state.blog_content))
