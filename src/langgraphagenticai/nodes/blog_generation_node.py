@@ -171,10 +171,11 @@ class BlogGenerationNode:
         return {"initial_draft": initial_draft}
 
     def feedback_collector(self, state: State) -> dict:
-        logger.info(f"Executing feedback_collector with state: {state}")
+        logger.info(f"\n\n----------------:Entered  feedback_collector with state:----------------------\n\n{state}")
 
         if state.get("messages") and len(state["messages"]) > 0 and isinstance(state["messages"][-1], HumanMessage):
             try:
+                
                 feedback_data = json.loads(state["messages"][-1].content)
                 is_approved = feedback_data.get("approved", False)
                 comments = feedback_data.get("comments", "")

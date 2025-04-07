@@ -25,6 +25,7 @@ class DisplayResultStreamlit:
         """Initialize all session state variables."""
         defaults = {
             "current_session_id": None,
+            "current_stage": "requirements",
         }
         for key, value in defaults.items():
             if key not in st.session_state:
@@ -49,29 +50,60 @@ class DisplayResultStreamlit:
 
     def process_user_input(self):
         """Process user input and display results based on the use case."""
+        st.write("Session State at start of process_user_input:", st.session_state) # Debugging
+
         if self.usecase == "Blog Generation":
-            
+
             blog_display = DisplayBlogResult(self.graph, self.config)
-            if not st.session_state.blog_requirements_collected:
-                input_message = blog_display.collect_blog_requirements()
-                logger.info(f"\n\n-----------------------------: Entered main Display Collection of blog requirements:--------------------------------- {input_message}\n\n--------------------")
-                if input_message:
-                    logger.info(f"\n\n-----------------------------: Entered main Display 1st If block input message:-----------------------------------------------------")
-                    st.session_state.blog_requirements_collected = True
-                    blog_display.process_graph_events(input_message)
-                    logger.info(f"\n\n-----------------------------end of 1st If block End of Blog Requirements:-----------------------------------------------------")
-            if st.session_state.waiting_for_feedback:
-                logger.info(f"\n\n-----------------------------: Entered main Display 2nd If block waiting_for_feedback:-----------------------------------------------------")
-                feedback = blog_display.process_feedback()
-                print(f"\n\n----------------Feedback before sending to graph & after process_feedback function : {feedback}--------------------------------------\n\n")
-                if feedback:
-                    print(f"\n\n----------------1 st if feedback before sending to graph : {feedback}--------------------------------------\n\n")
-                    blog_display.process_graph_events(HumanMessage(content=json.dumps(feedback)))
-                elif st.session_state.get('feedback_result'): #check if feedback result is in session state.
-                    print(f"\n\n----------------2 nd if feedback before sending to graph : {st.session_state['feedback_result']}--------------------------------------\n\n")
-                    blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'])))
-                else:
-                    blog_display.process_graph_events()
+            if st.session_state.current_stage == "requirements":
+                if not st.session_state.blog_requirements_collected:
+                    input_message = blog_display.collect_blog_requirements()
+                    logger.info(f"\n\n-----------------------------: Entered main Display Collection of blog requirements:--------------------------------- {input_message}\n\n--------------------")
+                    if input_message:
+                        logger.info(f"\n\n-----------------------------: Entered main Display 1st If block input message:-----------------------------------------------------")
+                        st.session_state.blog_requirements_collected = True
+                        st.session_state.initial_input_message = input_message # Store the initial input
+                        st.session_state.current_stage = "processing"  # Move to processing stage
+                        st.rerun() # Trigger rerun to enter the processing stage
+
+            elif st.session_state.current_stage == "processing":
+                initial_input = st.session_state.get('initial_input_message')
+                logger.info(f"\n\n-----------------------------: Entered main Display processing stage:-----------------------------------------------------\n\n")
+                st.write("Initial Input being passed to process_graph_events:", initial_input) # Debugging
+                blog_display.process_graph_events(initial_input) # Pass the stored input message
+                logger.info(f"\n\n-----------------------------: Current stage after processing:{st.session_state.current_stage}-----------------------------------------------------\n\n")
+                st.rerun()  # Trigger rerun to refresh the UI
+
+            elif st.session_state.current_stage == "feedback":
+                logger.info(f"\n\n-----------------------------: Entered main Display feedback stage:{st.session_state.current_stage}-----------------------------------------------------")
+                st.write("Entering feedback stage in main loop")
+                logger.info("Entering feedback stage in main loop")
+                feedback_result = blog_display.process_feedback()
+                st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
+
+                # Check if feedback has been submitted
+                if st.session_state.get('feedback_result'):
+                    if st.session_state['feedback_result'].approved:
+                        st.session_state.current_stage = "complete"
+                        st.rerun() # Trigger rerun to show completion
+                    else:
+                        st.session_state.current_stage = "processing_feedback"
+                        st.rerun()
+                
+
+            elif st.session_state.current_stage == "processing_feedback":
+                logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:{st.session_state.current_stage}-----------------------------------------------------")
+                blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'].model_dump_json())))
+                st.session_state.current_stage = "processing" # Go back to processing after sending feedback
+                st.rerun()
+
+            elif st.session_state.current_stage == "complete":
+                logger.info(f"\n\n-----------------------------: Entered main Display complete stage:{st.session_state.current_stage}-----------------------------------------------------")
+                st.success("✅ Blog generation complete!")
+                if st.session_state.get("blog_content"):
+                    st.markdown("### Final Blog Content:")
+                    st.markdown(st.session_state["blog_content"])
+
         else:
             self._handle_chatbot_input()
 
