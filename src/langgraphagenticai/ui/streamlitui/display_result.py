@@ -3,6 +3,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 import logging
 import json
 from datetime import datetime
+import base64
+
+# Assuming display_result_blog.py is in the same directory or accessible in your Python path
 from .display_result_blog import DisplayBlogResult
 
 logging.basicConfig(
@@ -26,8 +29,27 @@ class DisplayResultStreamlit:
         defaults = {
             "current_session_id": None,
             "current_stage": "requirements",
+            "initial_input_message": None, # To store the initial blog requirements
         }
         for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+
+        blog_defaults = {
+            "waiting_for_feedback": False,
+            "blog_requirements_collected": False,
+            "content_displayed": False,
+            "graph_state": None,
+            "feedback": "",
+            "blog_content": None,
+            "blog_generation_complete": False,
+            "feedback_submitted": False,  # Track if feedback was submitted
+            "processing_complete": False,  # Track if processing is complete
+            "feedback_result": None,
+            "generated_draft": None,
+            "synthesizer_output_processed": False
+        }
+        for key, value in blog_defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
 
@@ -68,44 +90,51 @@ class DisplayResultStreamlit:
 
             elif st.session_state.current_stage == "processing":
                 initial_input = st.session_state.get('initial_input_message')
-                logger.info(f"\n\n-----------------------------: Entered main Display processing stage:-----------------------------------------------------\n\n")
                 st.write("Initial Input being passed to process_graph_events:", initial_input) # Debugging
                 blog_display.process_graph_events(initial_input) # Pass the stored input message
-                logger.info(f"\n\n-----------------------------: Current stage after processing:{st.session_state.current_stage}-----------------------------------------------------\n\n")
-                st.rerun()  # Trigger rerun to refresh the UI
+                # After processing, the graph should eventually trigger '__interrupt__'
+                # which will change current_stage to 'feedback'
 
             elif st.session_state.current_stage == "feedback":
-                logger.info(f"\n\n-----------------------------: Entered main Display feedback stage:{st.session_state.current_stage}-----------------------------------------------------")
                 st.write("Entering feedback stage in main loop")
                 logger.info("Entering feedback stage in main loop")
                 feedback_result = blog_display.process_feedback()
-                st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
+                # st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
 
                 # Check if feedback has been submitted
                 if st.session_state.get('feedback_result'):
                     if st.session_state['feedback_result'].approved:
+                        final_draft=st.session_state.get("generated_draft")
+                        st.session_state["blog_content"] = final_draft
+                        st.session_state["generated_draft"] = None # Clear the draft after approval
                         st.session_state.current_stage = "complete"
                         st.rerun() # Trigger rerun to show completion
-                    else:
+                    else:   
                         st.session_state.current_stage = "processing_feedback"
-                        st.rerun()
-                
+                        st.rerun() # Trigger rerun to process revision request
 
             elif st.session_state.current_stage == "processing_feedback":
-                logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:{st.session_state.current_stage}-----------------------------------------------------")
+                logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:-----------------------------------------------------")
                 blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'].model_dump_json())))
                 st.session_state.current_stage = "processing" # Go back to processing after sending feedback
                 st.rerun()
 
             elif st.session_state.current_stage == "complete":
-                logger.info(f"\n\n-----------------------------: Entered main Display complete stage:{st.session_state.current_stage}-----------------------------------------------------")
                 st.success("✅ Blog generation complete!")
                 if st.session_state.get("blog_content"):
                     st.markdown("### Final Blog Content:")
                     st.markdown(st.session_state["blog_content"])
+                    self._download_blog_content(st.session_state["blog_content"]) # Add download button
 
         else:
             self._handle_chatbot_input()
+
+    def _download_blog_content(self, blog_content):
+        """Creates a download button for the blog content."""
+        if blog_content:
+            b64 = base64.b64encode(blog_content.encode()).decode()
+            href = f'<a href="data:text/plain;base64,{b64}" download="blog_content.txt">⬇️ Download Blog Content</a>'
+            st.markdown(href, unsafe_allow_html=True)
 
     def _handle_chatbot_input(self):
         user_message = st.chat_input("Enter your message:")
