@@ -97,27 +97,33 @@ class DisplayResultStreamlit:
 
             elif st.session_state.current_stage == "feedback":
                 st.write("Entering feedback stage in main loop")
-                logger.info("Entering feedback stage in main loop")
-                feedback_result = blog_display.process_feedback()
+                logger.info(f"Entering feedback stage in main loop: submission status {st.session_state['feedback_submitted']}")
+                if st.session_state["feedback_submitted"]==False:
+                    logger.info(f"----------Inside feedback_submitted If Block---------------------")
+                    feedback_result = blog_display.process_feedback()
                 # st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
 
                 # Check if feedback has been submitted in the current run
-                if feedback_result:
-                    if feedback_result.approved:
-                        final_draft = st.session_state.get("generated_draft")
-                        st.session_state["blog_content"] = final_draft
-                        st.session_state["generated_draft"] = None # Clear the draft after approval
-                        st.session_state.current_stage = "complete"
-                        st.rerun() # Trigger rerun to show completion
-                    else:
-                        st.session_state.current_stage = "processing_feedback"
-                        st.rerun() # Trigger rerun to process revision request
+                    if feedback_result:
+                        if feedback_result.approved:
+                            final_draft = st.session_state.get("generated_draft")
+                            st.session_state["blog_content"] = final_draft
+                            st.session_state["generated_draft"] = None # Clear the draft after approval
+                            st.session_state.current_stage = "complete"
+                            feedback_result=None
+                            st.rerun() # Trigger rerun to show completion
+                else:
+                    st.session_state.current_stage = "processing_feedback"
+
+                    st.rerun() # Trigger rerun to process revision request
                 
 
             elif st.session_state.current_stage == "processing_feedback":
                 logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:-----------------------------------------------------")
                 blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'].model_dump_json())))
-                st.session_state.current_stage = "processing" # Go back to processing after sending feedback
+                st.session_state.current_stage = "processing"
+                feedback_result=None
+                st.session_state['feedback_submitted']=False # Go back to processing after sending feedback
                 st.rerun()
 
             elif st.session_state.current_stage == "complete":

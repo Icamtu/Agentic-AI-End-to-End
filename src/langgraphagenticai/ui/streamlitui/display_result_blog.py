@@ -120,26 +120,20 @@ class DisplayBlogResult:
     def _handle_approved_click(self):
         print("\n\n----approved button ON_CLICK call back executed----\n\n")
         logger.info("----approved button ON_CLICK call back executed----")
-        st.session_state['feedback_result'] = ReviewFeedback(approved=True, comments=st.session_state.get('revision_comments', ""))
+        st.session_state['feedback_result'] = ReviewFeedback(approved=True, comments=st.session_state.get('feedback'))
         print(f"\n\n----------exiting _handle_approved_click function{st.session_state['feedback_result']}---------------\n\n")
 
     def _handle_revised_click(self):
-        feedback_text = st.session_state.get('revision_comments', "")
-        if feedback_text:
-            print("\n\n----revised button ON_CLICK call back executed----\n\n")
-            logger.info("----revised button ON_CLICK call back executed----")
-            st.session_state['feedback_result'] = ReviewFeedback(approved=False, comments=feedback_text)
-            st.session_state.approval_requested = True
-            st.session_state.feedback_type = "revise"
-            st.session_state.feedback_text = feedback_text
-            print(f"Feedback text: {feedback_text}")
-            st.session_state.current_stage = "processing_feedback" # Set stage for processing feedback
-            st.rerun() # Add this line
-        else:
-            st.warning("Please provide comments for revision.")
-            if "revsion_requested" in st.session_state:
-                del st.session_state.feedback_type
-            st.session_state['feedback_result'] = None
+    
+        print("\n\n----Revised button ON_CLICK call back executed----\n\n")
+        logger.info("----Revised button ON_CLICK call back executed----")
+        st.session_state['feedback_result'] = ReviewFeedback(approved=False, comments=st.session_state.get('feedback'))
+        st.session_state["feedback_submitted"]=True
+        print(f"\n\n----------feedback_submitted: {st.session_state['feedback_submitted']} & Exiting _handle_revised_click function with {st.session_state['feedback_result']}---------------\n\n")
+      
+        # st.session_state.current_stage = "processing_feedback" # Set stage for processing feedback
+          
+
 
     def process_feedback(self):
         print("\n\n----blog_display process_feedback function entered----\n\n")
@@ -152,7 +146,7 @@ class DisplayBlogResult:
             self.feedback_text = st.text_area("Revision comments:", value="Add some references to the content",
                                             placeholder="Please explain what changes you would like to see.",
                                             key="revision_comments_area")
-            # print(f"\n\n----------Feedback text: {self.feedback_text}---------------\n\n")
+            st.session_state["feedback"]=self.feedback_text
             col1, col2 = st.columns(2)
             with col1:
                 st.button("✅ Approve Content", on_click=self._handle_approved_click, key="blog_feedback_approve_button")
