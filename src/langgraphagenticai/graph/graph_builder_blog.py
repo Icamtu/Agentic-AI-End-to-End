@@ -126,7 +126,7 @@ class BlogGraphBuilder:
             graph_builder.add_node("file_generator", blog_node.file_generator) # Changed node name
 
             # Add edges
-            graph_builder.set_entry_point("user_input") # Changed from START
+            graph_builder.add_edge(START,"user_input") 
             graph_builder.add_edge("user_input", "orchestrator")
             graph_builder.add_conditional_edges("orchestrator", lambda state: blog_node.assign_workers(state), ["llm_call"])
             graph_builder.add_edge("llm_call", "synthesizer")

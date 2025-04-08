@@ -176,31 +176,32 @@ class BlogGenerationNode:
 
         if state.get("messages") and len(state["messages"]) > 0 and isinstance(state["messages"][-1], HumanMessage):
             try:
-                
                 feedback_data = json.loads(state["messages"][-1].content)
                 is_approved = feedback_data.get("approved", False)
                 comments = feedback_data.get("comments", "")
                 logger.info(f"Parsed feedback: approved={is_approved}, comments={comments}")
-                
-                # For approved content, set the final report from the initial draft
+
                 if is_approved:
                     logger.info("Content approved, preparing final report")
                     final_report = state.get("initial_draft", "")
-                    return {
+                    collector_output = {
                         "feedback": comments,
-                        "draft_approved": True,  # Explicitly set to True
-                        "final_report": final_report  # Make sure to set the final report
+                        "draft_approved": True,
+                        "final_report": final_report
                     }
                 else:
-                    return {
+                    collector_output = {
                         "feedback": comments,
                         "draft_approved": False,
-                        "final_report": ""  # Empty for now, will be set after revisions
+                        "final_report": ""
                     }
+                logger.info(f"{'='*20}:feedback_collector output:{'='*20}\n{collector_output}") # Add this log
+                return collector_output
+
             except json.JSONDecodeError:
                 logger.warning("Invalid feedback format; returning default values")
                 return {"feedback": "", "draft_approved": False, "final_report": ""}
-        
+
         logger.info("No new feedback message found; returning default values")
         return {"feedback": "", "draft_approved": False, "final_report": ""}
 

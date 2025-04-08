@@ -95,7 +95,8 @@ class DisplayBlogResult:
                     # Create message and add to history
                     message = HumanMessage(content=f"Topic: {topic}\nObjective: {objective}\n"
                                                     f"Target Audience: {target_audience}\nTone & Style: {tone_style}\n"
-                                                    f"Word Count: {word_count}\nStructure: {structure}")
+                                                    f"Word Count: {word_count}\nStructure: {structure}\n"
+                                                    f"feedback: {st.session_state.get('feedback')}")
                     self.session_history.append(message)
                     st.session_state.blog_requirements_collected = True
                     logger.info(f"\n\n--------------:Blog requirements collected:------------------\n{message.content}--------------------\n\n")
@@ -121,6 +122,7 @@ class DisplayBlogResult:
         print("\n\n----approved button ON_CLICK call back executed----\n\n")
         logger.info("----approved button ON_CLICK call back executed----")
         st.session_state['feedback_result'] = ReviewFeedback(approved=True, comments=st.session_state.get('feedback'))
+        st.session_state["feedback_submitted"] = True 
         print(f"\n\n----------exiting _handle_approved_click function{st.session_state['feedback_result']}---------------\n\n")
 
     def _handle_revised_click(self):
@@ -139,15 +141,20 @@ class DisplayBlogResult:
     def process_feedback(self):
         print("\n\n----blog_display process_feedback function entered----\n\n")
         logger.info("---blog_display process_feedback function entered ----\n\n")
+        st.write("Session State in process_feedback:", st.session_state)
         st.markdown("## Stage 3: Feedback")
         if st.session_state.get("generated_draft"):
             st.markdown("### Drafted Blog Content:")
             st.markdown(st.session_state["generated_draft"])
         with st.expander("Stage 3: Feedback", expanded=True):
-            self.feedback_text = st.text_area("Revision comments:", value="Add some references to the content",
-                                            placeholder="Please explain what changes you would like to see.",
-                                            key="revision_comments_area")
-            st.session_state["feedback"]=self.feedback_text
+            feedback_text = st.text_input(
+                "Revision comments:",
+                placeholder="Please explain what changes you would like to see.",
+                key="revision_comments_area",
+                value=st.session_state.get("revision_comments_area", "Add some reference to it ")
+            )
+            st.session_state["feedback"] = feedback_text  # Update session state for graph processing
+
             col1, col2 = st.columns(2)
             with col1:
                 st.button("✅ Approve Content", on_click=self._handle_approved_click, key="blog_feedback_approve_button")
@@ -192,14 +199,9 @@ class DisplayBlogResult:
                             st.session_state.generated_draft = state["initial_draft"]
                             st.session_state.content_displayed = True  # Ensure this is set
                             st.session_state.current_stage = "content"  # Ensure this is set
-                            # st.success("✅ Blog content has been generated for review!")
-                            # with st.expander("Stage 2: Generated Draft", expanded=True):
-                            #     st.markdown(state["initial_draft"])
-                            # progress_bar.progress(1.0)
                             st.session_state.synthesizer_output_processed = True #Set the flag.
 
-                    # Check if the file_generator node finished to set stage to complete
-                    # This might happen when processing feedback
+                    # Check if the file_generator node finished 
                     if node == "file_generator":
                         logger.info("File generator node finished, setting stage to complete.")
                         st.session_state.blog_generation_complete = True
