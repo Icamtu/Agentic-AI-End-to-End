@@ -133,6 +133,7 @@ class BlogGenerationNode:
     def orchestrator(self, state: State) -> dict:
         """Orchestrator that generates a plan for the report."""
         logger.info(f"Executing orchestrator with state: {state}")
+        logger.info(f"\n{'='*20}:Current feedback in orchestrator state:{'='*20}\n{'='*20}{state.get('feedback')}{'='*20}\n")
         structure_list = [s.strip() for s in state["structure"].split(",")]
         section_count = len(structure_list)
 

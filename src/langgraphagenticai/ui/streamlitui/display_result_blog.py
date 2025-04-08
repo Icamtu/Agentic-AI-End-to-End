@@ -129,6 +129,7 @@ class DisplayBlogResult:
         logger.info("----Revised button ON_CLICK call back executed----")
         st.session_state['feedback_result'] = ReviewFeedback(approved=False, comments=st.session_state.get('feedback'))
         st.session_state["feedback_submitted"]=True
+        # st.session_state.current_stage = "processing_feedback"
         print(f"\n\n----------feedback_submitted: {st.session_state['feedback_submitted']} & Exiting _handle_revised_click function with {st.session_state['feedback_result']}---------------\n\n")
       
         # st.session_state.current_stage = "processing_feedback" # Set stage for processing feedback

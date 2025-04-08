@@ -29,13 +29,13 @@ class DisplayResultStreamlit:
         defaults = {
             "current_session_id": None,
             "current_stage": "requirements",
-            "initial_input_message": None, # To store the initial blog requirements
-        }
+            }
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
 
         blog_defaults = {
+            "initial_input_message": None, # To store the initial blog requirements
             "waiting_for_feedback": False,
             "blog_requirements_collected": False,
             "content_displayed": False,
@@ -89,8 +89,9 @@ class DisplayResultStreamlit:
                         st.rerun() # Trigger rerun to enter the processing stage
 
             elif st.session_state.current_stage == "processing":
+                
                 initial_input = st.session_state.get('initial_input_message')
-                st.write("Initial Input being passed to process_graph_events:", initial_input) # Debugging
+                st.write("\n{'='*20}:Initial Input being passed to process_graph_events:{'='*20}\n", initial_input) # Debugging
                 blog_display.process_graph_events(initial_input) # Pass the stored input message
                 # After processing, the graph should eventually trigger '__interrupt__'
                 # which will change current_stage to 'feedback'
@@ -98,34 +99,41 @@ class DisplayResultStreamlit:
             elif st.session_state.current_stage == "feedback":
                 st.write("Entering feedback stage in main loop")
                 logger.info(f"Entering feedback stage in main loop: submission status {st.session_state['feedback_submitted']}")
-                if st.session_state["feedback_submitted"]==False:
-                    logger.info(f"----------Inside feedback_submitted If Block---------------------")
+                if not st.session_state["feedback_submitted"]:
+                    logger.info(f"{"="*20}Inside not feedback_submitted If Block{"="*20}")
                     feedback_result = blog_display.process_feedback()
-                # st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
-
-                # Check if feedback has been submitted in the current run
-                    if feedback_result:
-                        if feedback_result.approved:
+                    st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
+                else:
+                    logger.info(f"\n\n{"="*20}Inside feedback_submitted else Block{"="*20}\n\n")
+                    # Feedback has been submitted (either approved or needs revision)
+                    feedback_result = st.session_state.get('feedback_result')
+                    logger.info(f"\n\n{"="*20}Ifeedback_result.approved: {feedback_result.approved}{"="*20}\n\n")
+                    if feedback_result.approved==True:
+                            logger.info(f"\n\n{"="*20}Inside feedback_submitted if approved Block{"="*20}\n\n")
                             final_draft = st.session_state.get("generated_draft")
                             st.session_state["blog_content"] = final_draft
                             st.session_state["generated_draft"] = None # Clear the draft after approval
-                            st.session_state.current_stage = "complete"
-                            feedback_result=None
+                            st.session_state.current_stage = "complete" # Move to complete stage
+                            feedback_result.approved = None # Clear the feedback result
+                            # st.session_state["feedback_submitted"] = None # Reset for potential future feedback
                             st.rerun() # Trigger rerun to show completion
-                else:
-                    st.session_state.current_stage = "processing_feedback"
-
-                    st.rerun() # Trigger rerun to process revision request
-                
+                    else:
+                        # Revision requested - move to the processing_feedback stage
+                        logger.info(f"\n\n{"="*20}Inside feedback_submitted else not approved Block{"="*20}\n\n")
+                        logger.info(f"\n{'*'*20}feedback_submitted  is {feedback_result.comments}{'*'*20}\n")
+                        st.session_state["feedback"] = feedback_result.comments # Store the feedback
+                        st.session_state.current_stage = "processing_feedback" # Move to processing_feedback stage
+                        st.session_state["feedback_submitted"] = None # Reset the flag
+                        feedback_result.comments = None # Clear the feedback result
+                        logger.info(f"\n{'*'*20}feedback_submitted status is {st.session_state['feedback_submitted']}{'*'*20}\n")
+                        st.rerun() # Trigger rerun to enter the processing_feedback stage
 
             elif st.session_state.current_stage == "processing_feedback":
-                logger.info(f"\n\n-----------------------------: Entered main Display processing_feedback stage:-----------------------------------------------------")
-                blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'].model_dump_json())))
+                logger.info(f"\n\n{"="*20}: Entered main Display processing_feedback stage:{"="*20}\n\n")
                 st.session_state.current_stage = "processing"
-                feedback_result=None
-                st.session_state['feedback_submitted']=False # Go back to processing after sending feedback
+                blog_display.process_graph_events(HumanMessage(content=json.dumps(st.session_state['feedback_result'].model_dump_json())))
+                st.session_state['feedback_result'] = None # Clear the feedback result
                 st.rerun()
-
             elif st.session_state.current_stage == "complete":
                 st.success("✅ Blog generation complete!")
                 if st.session_state.get("blog_content"):
