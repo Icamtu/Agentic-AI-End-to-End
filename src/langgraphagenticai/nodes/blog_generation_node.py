@@ -172,8 +172,10 @@ class BlogGenerationNode:
         return {"initial_draft": initial_draft}
 
     def feedback_collector(self, state: State) -> dict:
-        logger.info(f"\n\n----------------:Entered  feedback_collector with state:----------------------\n\n{state}")
-
+        logger.info(f"\n\n----------------:Entered feedback_collector with state:----------------------\n\n{state}")
+        logger.info(f"Message count: {len(state.get('messages', []))}")
+        logger.info(f"Last message type: {type(state['messages'][-1]) if state.get('messages') else 'None'}")
+        
         if state.get("messages") and len(state["messages"]) > 0 and isinstance(state["messages"][-1], HumanMessage):
             try:
                 feedback_data = json.loads(state["messages"][-1].content)
@@ -220,11 +222,12 @@ class BlogGenerationNode:
     # Conditional edge for feedback loop
     def route_feedback(self, state: State):
         """Route based on whether draft is approved."""
-        logger.info(f"route_feedback: draft_approved = {state.get('draft_approved', False)}")
-        logger.info(f"route_feedback: state[\\'draft_approved\\'] = {state['draft_approved']}")
-        if state["draft_approved"]== True:
+        draft_approved = state.get('draft_approved', False)
+        logger.info(f"route_feedback: draft_approved = {draft_approved}")
+        
+        if draft_approved is True:  # Strict comparison
             logger.info("Draft approved; routing to file_generator")
-            state["final_report"] = state.get("initial_draft", "") 
-            return "file_generator" # Routes to file_generator if approved
-        logger.info("Draft not approved; routing back to orchestrator for revision")
-        return "orchestrator" # Routes back to orchestrator if not approved
+            return "file_generator"
+        else:
+            logger.info("Draft not approved; routing back to orchestrator for revision")
+            return "orchestrator"

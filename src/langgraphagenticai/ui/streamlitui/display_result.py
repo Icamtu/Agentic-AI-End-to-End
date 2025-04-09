@@ -130,13 +130,35 @@ class DisplayResultStreamlit:
                         logger.info(f"\n{'*'*20}st.session_state[feedback] is {st.session_state["feedback"]}{'*'*20}\n")
                         st.rerun() # Trigger rerun to enter the processing_feedback stage
 
+            # In DisplayResultStreamlit.process_user_input() for the "processing_feedback" stage
             elif st.session_state.current_stage == "processing_feedback":
                 logger.info(f"\n\n{"="*20}: Entered main Display processing_feedback stage:{"="*20}\n\n")
+                
+                # Create a proper feedback message
+                feedback_message = HumanMessage(content=json.dumps({
+                    "approved": False, 
+                    "comments": st.session_state['feedback']
+                }))
+                
+                # Resume the graph with the stored state and new feedback
+                logger.info(f"Resuming graph with feedback: {feedback_message.content}")
+                
+                # Use the stored checkpoint state to resume the graph
+                checkpoint_state = st.session_state.get("graph_state")
+                if checkpoint_state:
+                    input_data = {
+                        "messages": [feedback_message],
+                        "__checkpoint__": checkpoint_state  # Pass the stored checkpoint
+                    }
+                    blog_display.process_graph_events_with_checkpoint(input_data)
+                else:
+                    # Fall back to regular processing if no checkpoint available
+                    blog_display.process_graph_events(feedback_message)
+                
                 st.session_state.current_stage = "processing"
-                logger.info(f"\n{'*'*20}st.session_state[feedback] is {st.session_state["feedback"]}{'*'*20}\n")
-                blog_display.process_graph_events(HumanMessage(content=json.dumps({"approved": False, "comments": st.session_state['feedback']})))
-                st.session_state['feedback_result'] = None # Clear the feedback result
+                st.session_state['feedback_result'] = None  # Clear the feedback result
                 st.rerun()
+                
             elif st.session_state.current_stage == "complete":
                 st.success("✅ Blog generation complete!")
                 if st.session_state.get("blog_content"):
