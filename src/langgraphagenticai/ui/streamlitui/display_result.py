@@ -132,31 +132,57 @@ class DisplayResultStreamlit:
 
             # In DisplayResultStreamlit.process_user_input() for the "processing_feedback" stage
             elif st.session_state.current_stage == "processing_feedback":
-                logger.info(f"\n\n{"="*20}: Entered main Display processing_feedback stage:{"="*20}\n\n")
+                logger.info(f"\n\n{'='*20}: Entered main Display processing_feedback stage:{'='*20}\n\n")
                 
                 # Create a proper feedback message
                 feedback_message = HumanMessage(content=json.dumps({
-                    "approved": False, 
+                    "approved": False,
                     "comments": st.session_state['feedback']
                 }))
                 
                 # Resume the graph with the stored state and new feedback
                 logger.info(f"Resuming graph with feedback: {feedback_message.content}")
+                logger.info(f"\n\n{'>'*20}Session State Feedback: {st.session_state['feedback']}{'<'*20}\n\n")
                 
                 # Use the stored checkpoint state to resume the graph
                 checkpoint_state = st.session_state.get("graph_state")
-                if checkpoint_state:
-                    input_data = {
-                        "messages": [feedback_message],
-                        "__checkpoint__": checkpoint_state  # Pass the stored checkpoint
-                    }
-                    blog_display.process_graph_events_with_checkpoint(input_data)
-                else:
-                    # Fall back to regular processing if no checkpoint available
-                    blog_display.process_graph_events(feedback_message)
                 
-                st.session_state.current_stage = "processing"
-                st.session_state['feedback_result'] = None  # Clear the feedback result
+                if checkpoint_state:
+                    try:
+                        input_data = {
+                            "messages": [feedback_message],
+                            "__checkpoint__": checkpoint_state
+                        }
+                        logger.info("Resuming graph with checkpoint and feedback")
+                        graph_status = blog_display.process_graph_events_with_checkpoint(input_data)
+                        logger.info(f"Graph processing completed with status: {graph_status}")
+                        
+                        if graph_status == "completed":
+                            st.session_state.current_stage = "complete"
+                        elif graph_status == "interrupted":
+                            st.session_state.current_stage = "feedback"
+                            st.session_state["feedback_submitted"] = False
+                        else:
+                            logger.error(f"Graph processing ended with unexpected status: {graph_status}")
+                            st.error("Error during feedback processing. Starting over from requirements.")
+                            st.session_state.current_stage = "requirements"
+                            st.session_state.blog_requirements_collected = False
+                            st.error("Error processing your feedback. Please try again.")
+                    except Exception as e:
+                        logger.exception(f"Error during feedback processing: {e}")
+                        st.error("Error processing feedback. Starting over from requirements.")
+                        st.session_state.current_stage = "requirements"
+                        st.session_state.blog_requirements_collected = False
+                else:
+                    logger.warning("No checkpoint found in session state. Cannot resume processing.")
+                    st.warning("Unable to process feedback - starting over from requirements.")
+                    st.session_state.current_stage = "requirements"
+                    st.session_state.blog_requirements_collected = False
+                
+                # Clear feedback-related state
+                st.session_state['feedback_result'] = None
+                st.session_state['feedback_submitted'] = False
+                st.session_state['feedback'] = ""
                 st.rerun()
                 
             elif st.session_state.current_stage == "complete":

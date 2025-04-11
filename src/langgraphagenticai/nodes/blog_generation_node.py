@@ -105,35 +105,94 @@ class BlogGenerationNode:
             return default_structure
 
     def user_input(self, state: State) -> dict:
-        """Handle user input."""
+        """Handle user input, distinguishing between initial requirements and feedback."""
         logger.info(f"Executing user_input with state: {state}")
-        user_message = state["messages"][-1].content if state["messages"] else ""
-        requirements = {}
-        for line in user_message.split("\n"):
-            if ": " in line:
-                key, value = line.split(": ", 1)
-                requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
-        result = {
-            "topic": requirements.get("topic", "No topic provided"),
-            "objective": requirements.get("objective", "Informative"),
-            "target_audience": requirements.get("target_audience", "General Audience"),
-            "tone_style": requirements.get("tone_style", "Casual"),
-            "word_count": int(requirements.get("word_count", 1000)),
-            "structure": requirements.get("structure", "Introduction, Main Points, Conclusion"),
-            "feedback": state.get("feedback", "No feedback provided yet.") # Initialize feedback here
+        
+        # Initialize requirements with existing state values to preserve them
+        requirements = {
+            "topic": state.get("topic", "No topic provided"),
+            "objective": state.get("objective", "Informative"),
+            "target_audience": state.get("target_audience", "General Audience"),
+            "tone_style": state.get("tone_style", "Casual"),
+            "word_count": state.get("word_count", 1000),
+            "structure": state.get("structure", "Introduction, Main Content, Conclusion"),
+            "feedback": state.get("feedback", "No feedback provided yet."),
+            "initial_draft": "",  # Reset initial_draft
+            "completed_sections": []  # Reset completed_sections
         }
+        
+        # Get the latest message
+        user_message = state["messages"][-1].content if state["messages"] else ""
+        if not user_message:
+            logger.warning("No user message provided; returning existing requirements")
+            return requirements
+
+        # Flag to track if the message is feedback
+        is_feedback = False
+        
+        try:
+            # Check if the message is feedback (JSON format)
+            feedback_data = json.loads(user_message)
+            if isinstance(feedback_data, dict) and "approved" in feedback_data:
+                # This is a feedback message, update only the feedback field
+                requirements["feedback"] = feedback_data.get("comments", "No feedback provided.")
+                is_feedback = True
+                logger.info(f"Processed feedback message: {requirements['feedback']}")
+            else:
+                # Treat as requirements input
+                temp_requirements = {}
+                for line in user_message.split("\n"):
+                    if ": " in line:
+                        key, value = line.split(": ", 1)
+                        temp_requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
+                # Update requirements only for provided fields
+                requirements.update({
+                    "topic": temp_requirements.get("topic", requirements["topic"]),
+                    "objective": temp_requirements.get("objective", requirements["objective"]),
+                    "target_audience": temp_requirements.get("target_audience", requirements["target_audience"]),
+                    "tone_style": temp_requirements.get("tone_style", requirements["tone_style"]),
+                    "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
+                    "structure": temp_requirements.get("structure", requirements["structure"]),
+                    "feedback": temp_requirements.get("feedback", requirements["feedback"])
+                })
+                logger.info(f"Processed requirements input: {requirements}")
+        except json.JSONDecodeError:
+            # Not a JSON feedback message, treat as requirements
+            temp_requirements = {}
+            for line in user_message.split("\n"):
+                if ": " in line:
+                    key, value = line.split(": ", 1)
+                    temp_requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
+            # Update requirements only for provided fields
+            requirements.update({
+                "topic": temp_requirements.get("topic", requirements["topic"]),
+                "objective": temp_requirements.get("objective", requirements["objective"]),
+                "target_audience": temp_requirements.get("target_audience", requirements["target_audience"]),
+                "tone_style": temp_requirements.get("tone_style", requirements["tone_style"]),
+                "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
+                "structure": temp_requirements.get("structure", requirements["structure"]),
+                "feedback": temp_requirements.get("feedback", requirements["feedback"])
+            })
+            logger.info(f"Processed requirements input: {requirements}")
+        except Exception as e:
+            logger.error(f"Unexpected error processing user message: {e}")
+            # Return existing requirements to avoid crashing
+            return requirements
 
         # Update the state with the standardized structure
-        standardized_structure = self.validate_and_standardize_structure(user_message)
-        result["structure"] = ", ".join(standardized_structure)
+        # Use existing structure for feedback messages to avoid resetting it
+        structure_input = requirements["structure"] if is_feedback else user_message
+        standardized_structure = self.validate_and_standardize_structure(structure_input)
+        requirements["structure"] = ", ".join(standardized_structure)
 
-        logger.info(f"Parsed requirements: {result}")
-        return result
-
+        logger.info(f"Final parsed requirements: {requirements}")
+        return requirements
+            
     def orchestrator(self, state: State) -> dict:
         """Orchestrator that generates a plan for the report."""
         logger.info(f"Executing orchestrator with state: {state}")
         logger.info(f"\n{'='*20}:Current feedback in orchestrator state:{'='*20}\n{'='*20}{state.get('feedback')}{'='*20}\n")
+        feedback = state.get("feedback", "No feedback provided yet.")
         structure_list = [s.strip() for s in state["structure"].split(",")]
         section_count = len(structure_list)
 
@@ -148,7 +207,7 @@ class BlogGenerationNode:
             f"Please refrain from adding any extra sections or altering the section names unless {state['feedback']} is provided."
         )
 
-        feedback = state.get("feedback", "No feedback provided yet.")
+        
         report_sections = self.planner.invoke([
             SystemMessage(content=prompt),
             HumanMessage(content=f"Topic: {state['topic']} with feedback {feedback}")

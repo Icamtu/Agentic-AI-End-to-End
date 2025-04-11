@@ -19,9 +19,10 @@ class ReviewFeedback(BaseModel):
     comments: str = Field(description="Reviewer comments")
 
 class BlogGraphBuilder:
-    def __init__(self, llm, memory: MemorySaver):
+    def __init__(self, llm, memory: MemorySaver=None):
         self.llm = llm
-        self.memory = memory
+        self.memory = memory if memory is not None else MemorySaver()
+        
 
     def validate_and_standardize_structure(self, user_input: str) -> list:
         """
@@ -146,4 +147,6 @@ class BlogGraphBuilder:
             # Compile with interrupts after synthesizer to allow feedback collection
             return graph_builder.compile(interrupt_after=["synthesizer"], checkpointer=self.memory)
         except Exception as e:
-            print(f"{e}")
+            logger.error(f"Error building graph: {e}")
+            raise
+            
