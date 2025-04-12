@@ -127,6 +127,7 @@ class DisplayResultStreamlit:
                         st.session_state.current_stage = "processing_feedback" # Move to processing_feedback stage
                         st.session_state["feedback_submitted"] = None # Reset the flag
                         feedback_result.comments = None # Clear the feedback result
+                        st.session_state["initial_draft"]=None
                         logger.info(f"\n{'*'*20}st.session_state[feedback] is {st.session_state["feedback"]}{'*'*20}\n")
                         st.rerun() # Trigger rerun to enter the processing_feedback stage
 

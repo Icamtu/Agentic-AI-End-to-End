@@ -110,6 +110,7 @@ class BlogGraphBuilder:
     def build_graph(self):
         """
         Builds a graph for the Blog Generation use case.
+        Focuses on reliable checkpointing by adjusting interrupt timing.
         """
         try:
             if not self.llm:
@@ -124,29 +125,33 @@ class BlogGraphBuilder:
             graph_builder.add_node("llm_call", blog_node.llm_call)
             graph_builder.add_node("synthesizer", blog_node.synthesizer)
             graph_builder.add_node("feedback_collector", blog_node.feedback_collector)
-            graph_builder.add_node("file_generator", blog_node.file_generator) # Changed node name
+            graph_builder.add_node("file_generator", blog_node.file_generator)
+            
 
             # Add edges
-            graph_builder.add_edge(START,"user_input") 
+            graph_builder.add_edge(START,"user_input")
             graph_builder.add_edge("user_input", "orchestrator")
             graph_builder.add_conditional_edges("orchestrator", lambda state: blog_node.assign_workers(state), ["llm_call"])
             graph_builder.add_edge("llm_call", "synthesizer")
             graph_builder.add_edge("synthesizer", "feedback_collector")
+
+            # Restore original conditional edges for feedback
             graph_builder.add_conditional_edges(
                 "feedback_collector",
-                blog_node.route_feedback,  # Use instance method
+                blog_node.route_feedback,
                 {
-                    "orchestrator": "orchestrator",
+                    # If revision needed, go directly back to orchestrator
+                    "orchestrator": "orchestrator", # Restored from "reset_sections"
                     "file_generator": "file_generator"
                 }
             )
 
+     
 
             graph_builder.add_edge("file_generator", END)
 
-            # Compile with interrupts after synthesizer to allow feedback collection
-            return graph_builder.compile(interrupt_after=["synthesizer"], checkpointer=self.memory)
+          
+            return graph_builder.compile(interrupt_before=["feedback_collector"], checkpointer=self.memory) # Changed from interrupt_after
         except Exception as e:
             logger.error(f"Error building graph: {e}")
             raise
-            

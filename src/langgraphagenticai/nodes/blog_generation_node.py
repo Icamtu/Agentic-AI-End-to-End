@@ -222,7 +222,8 @@ class BlogGenerationNode:
             HumanMessage(content=f"Here is the section name: {state['section'].name} and description: {state['section'].description}")
         ])
         return {"completed_sections": [section.content]}
-
+    
+  
     def synthesizer(self, state: State) -> dict:
         """Synthesize full report from sections."""
         completed_sections = state["completed_sections"]
