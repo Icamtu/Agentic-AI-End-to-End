@@ -70,159 +70,177 @@ class DisplayResultStreamlit:
             with st.chat_message(role):
                 st.markdown(message.content, unsafe_allow_html=True)
 
+    # Inside langgraphagenticai/ui/streamlitui/display_result.py
+# Replace the existing process_user_input method with this:
+
     def process_user_input(self):
         """Process user input and display results based on the use case."""
-        st.write("Session State at start of process_user_input:", st.session_state) # Debugging
+        # st.write("DEBUG: Session State at start of process_user_input:", st.session_state) # Uncomment for Debugging
 
         if self.usecase == "Blog Generation":
-
             blog_display = DisplayBlogResult(self.graph, self.config)
+
+            # Stage 1: Collect Requirements
             if st.session_state.current_stage == "requirements":
                 if not st.session_state.blog_requirements_collected:
                     input_message = blog_display.collect_blog_requirements()
-                    logger.info(f"\n\n-----------------------------: Entered main Display Collection of blog requirements:--------------------------------- {input_message}\n\n--------------------")
+                    # logger.info(f"DEBUG: Requirements collected: {input_message}") # Uncomment for Debugging
                     if input_message:
-                        logger.info(f"\n\n-----------------------------: Entered main Display 1st If block input message:-----------------------------------------------------")
                         st.session_state.blog_requirements_collected = True
                         st.session_state.initial_input_message = input_message # Store the initial input
-                        st.session_state.current_stage = "processing"  # Move to processing stage
-                        st.rerun() # Trigger rerun to enter the processing stage
-                        
+                        st.session_state.current_stage = "processing"
+                        st.rerun()
 
+            # Stage 2: Initial Processing
             elif st.session_state.current_stage == "processing":
-                logger.info(f"\n{'*'*20}Entered to main Display processing stage{'*'*20}\n")
-                logger.info(f"\n{'*'*20}st.session_state[feedback] is {st.session_state["feedback"]}{'*'*20}\n")
+                logger.info("Entering processing stage.")
                 initial_input = st.session_state.get('initial_input_message')
-                st.write("\n{'='*20}:Initial Input being passed to process_graph_events:{'='*20}\n", initial_input) # Debugging
-                logger.info(f"\n{'='*20}:Initial Input being passed to process_graph_events:{'='*20}\n{ initial_input}") # Debugging
-                blog_display.process_graph_events(initial_input) 
+                if initial_input:
+                    input_data = {"messages": [initial_input]}
+                    # logger.info(f"DEBUG: Calling process_graph_events with initial input: {input_data}") # Uncomment for Debugging
+                    blog_display.process_graph_events(input_data)
+                else:
+                    logger.error("Processing stage reached but initial input message is missing.")
+                    st.error("Error: Initial requirements not found. Please start over.")
+                    st.session_state.current_stage = "requirements" # Reset to start
+                    st.rerun()
 
+            # Stage 3: Handle Feedback
             elif st.session_state.current_stage == "feedback":
-                st.write("Entering feedback stage in main loop")
-                logger.info(f"Entering feedback stage in main loop: submission status {st.session_state['feedback_submitted']}")
-                if not st.session_state["feedback_submitted"]:
-                    logger.info(f"{"="*20}Inside not feedback_submitted If Block{"="*20}")
-                    feedback_result = blog_display.process_feedback()
-                    st.write("Feedback Result from process_feedback:", feedback_result) # Debugging
+                logger.info(f"Entering feedback stage. Submitted: {st.session_state.get('feedback_submitted', False)}")
+                # Display draft if available
+                if st.session_state.get("generated_draft"):
+                     if not st.session_state.get("feedback_ui_displayed", False):
+                          # Only display the draft and feedback form once per feedback cycle
+                        #   st.markdown("### Draft for Review:")
+                        #   st.markdown(st.session_state["generated_draft"])
+                          st.session_state["feedback_ui_displayed"] = True # Mark UI as displayed
+                     feedback_result = blog_display.process_feedback() # Display feedback form and get result on submit
                 else:
-                    logger.info(f"\n\n{"="*20}Inside feedback_submitted else Block{"="*20}\n\n")
-                    # Feedback has been submitted (either approved or needs revision)
-                    feedback_result = st.session_state.get('feedback_result')
-                    logger.info(f"\n\n{"="*20}feedback_result.approved: {feedback_result.approved}{"="*20}\n\n")
-                    if feedback_result.approved==True:
-                        logger.info(f"\n\n{"="*20}Inside feedback_submitted if approved Block{"="*20}\n\n")
-                        final_draft = st.session_state.get("generated_draft")
-                        st.session_state["blog_content"] = final_draft
-                        st.session_state["generated_draft"] = None # Clear the draft after approval
-                        st.session_state.current_stage = "complete" # Move to complete stage
-                        feedback_result.approved = None # Clear the feedback result
-                        # st.session_state["feedback_submitted"] = None # Reset for potential future feedback
-                        st.rerun() # Trigger rerun to show completion
-                    else:
-                        # Revision requested - move to the processing_feedback stage
-                        logger.info(f"\n\n{"="*20}Inside feedback_submitted else not approved Block{"="*20}\n\n")
-                        logger.info(f"\n{'*'*20}feedback_submitted  is {feedback_result.comments}{'*'*20}\n")
-                        st.session_state["feedback"] = feedback_result.comments 
-                        logger.info(f"{"#"*20} Stored  feedback is: {st.session_state['feedback']}{"#"*20}\n")
-                        st.session_state.current_stage = "processing_feedback" # Move to processing_feedback stage
-                        st.session_state["feedback_submitted"] = None # Reset the flag
-                        feedback_result.comments = None # Clear the feedback result
-                        st.session_state["initial_draft"]=None
-                        logger.info(f"\n{'*'*20}st.session_state[feedback] is {st.session_state["feedback"]}{'*'*20}\n")
-                        st.rerun() # Trigger rerun to enter the processing_feedback stage
+                     st.warning("Waiting for draft to be generated before collecting feedback.")
+                     # Potentially add a spinner or status indicator here
 
-            # In DisplayResultStreamlit.process_user_input() for the "processing_feedback" stage
-            elif st.session_state.current_stage == "processing_feedback":
-                logger.info(f"\n\n{'='*20}: Entered main Display processing_feedback stage:{'='*20}\n\n")
-                
-                # Create a proper feedback message
-                feedback_message = HumanMessage(content=json.dumps({
-                    "approved": False,
-                    "comments": st.session_state['feedback']
-                }))
-                
-                # Resume the graph with the stored state and new feedback
-                logger.info(f"Resuming graph with feedback: {feedback_message.content}")
-                logger.info(f"\n\n{'>'*20}Session State Feedback: {st.session_state['feedback']}{'<'*20}\n\n")
-                
-                # Use the stored checkpoint state to resume the graph
-                checkpoint_state = st.session_state.get("graph_state")
-                
-                if checkpoint_state:
-                    try:
-                        input_data = {
-                            "messages": [feedback_message],
-                            "__checkpoint__": checkpoint_state
-                        }
-                        logger.info("Resuming graph with checkpoint and feedback")
-                        graph_status = blog_display.process_graph_events_with_checkpoint(input_data)
-                        logger.info(f"Graph processing completed with status: {graph_status}")
-                        
-                        if graph_status == "completed":
+                # Check if feedback was submitted via button clicks in process_feedback
+                if st.session_state.get("feedback_submitted"):
+                    logger.info("Feedback form submitted.")
+                    feedback_result = st.session_state.get('feedback_result')
+                    st.session_state["feedback_submitted"] = False # Reset flag immediately
+                    st.session_state["feedback_ui_displayed"] = False # Reset UI display flag
+
+                    if feedback_result:
+                        if feedback_result.approved:
+                            logger.info("Feedback: Approved")
+                            st.session_state["blog_content"] = st.session_state.get("generated_draft")
+                            st.session_state["generated_draft"] = None # Clear draft
                             st.session_state.current_stage = "complete"
-                        elif graph_status == "interrupted":
-                            st.session_state.current_stage = "feedback"
-                            st.session_state["feedback_submitted"] = False
+                            st.session_state['feedback_result'] = None # Clear result
+                            st.rerun()
                         else:
-                            logger.error(f"Graph processing ended with unexpected status: {graph_status}")
-                            st.error("Error during feedback processing. Starting over from requirements.")
-                            st.session_state.current_stage = "requirements"
-                            st.session_state.blog_requirements_collected = False
-                            st.error("Error processing your feedback. Please try again.")
-                    except Exception as e:
-                        logger.exception(f"Error during feedback processing: {e}")
-                        st.error("Error processing feedback. Starting over from requirements.")
-                        st.session_state.current_stage = "requirements"
-                        st.session_state.blog_requirements_collected = False
+                            # Revision requested
+                            logger.info(f"Feedback: Revision requested - comments: {feedback_result.comments}")
+                            st.session_state["feedback"] = feedback_result.comments
+                            st.session_state.current_stage = "processing_feedback"
+                            st.session_state['feedback_result'] = None # Clear result
+                            st.rerun()
+                    else:
+                         logger.warning("Feedback submitted but no result found in session state.")
+
+
+            # Stage 4: Process Feedback (Resume Graph)
+            elif st.session_state.current_stage == "processing_feedback":
+                logger.info("Entering processing_feedback stage.")
+                feedback_comment = st.session_state.get("feedback")
+                if feedback_comment is not None: # Check if feedback exists
+                    # Create the feedback message
+                    feedback_message = HumanMessage(content=json.dumps({
+                        "approved": False,
+                        "comments": feedback_comment
+                    }))
+                    # Prepare input data for resuming the graph
+                    # We only need to pass the new message. LangGraph uses the config
+                    # (session_id/thread_id) and its checkpointer to load the state.
+                    input_data = {"messages": [feedback_message]}
+                    logger.info(f"Resuming graph with feedback message: {feedback_message.content}")
+                    st.session_state["feedback"] = "" # Clear feedback after using it
+
+                    # Call the unified process_graph_events to resume
+                    blog_display.process_graph_events(input_data=input_data)
                 else:
-                    logger.warning("No checkpoint found in session state. Cannot resume processing.")
-                    st.warning("Unable to process feedback - starting over from requirements.")
-                    st.session_state.current_stage = "requirements"
-                    st.session_state.blog_requirements_collected = False
-                
-                # Clear feedback-related state
-                st.session_state['feedback_result'] = None
-                st.session_state['feedback_submitted'] = False
-                st.session_state['feedback'] = ""
-                st.rerun()
-                
+                     logger.error("Processing feedback stage reached but feedback comments are missing.")
+                     st.error("Error: Feedback comments not found. Please provide feedback again.")
+                     st.session_state.current_stage = "feedback" # Go back to feedback stage
+                     st.rerun()
+
+            # Stage 5: Completion
             elif st.session_state.current_stage == "complete":
+                logger.info("Entering complete stage.")
                 st.success("✅ Blog generation complete!")
                 if st.session_state.get("blog_content"):
                     st.markdown("### Final Blog Content:")
                     st.markdown(st.session_state["blog_content"])
-                    self._download_blog_content(st.session_state["blog_content"]) # Add download button
+                    blog_display._download_blog_content(st.session_state["blog_content"]) # Add download button
+                else:
+                    st.warning("Final blog content is not available.")
 
+        # Handle other use cases (non-blog)
         else:
             self._handle_chatbot_input()
 
     def _download_blog_content(self, blog_content):
-        """Creates a download button for the blog content."""
+        # (Keep this method as it was)
         if blog_content:
+            import base64 # Ensure import
             b64 = base64.b64encode(blog_content.encode()).decode()
-            href = f'<a href="data:text/plain;base64,{b64}" download="blog_content.txt">⬇️ Download Blog Content</a>'
+            # Use a timestamp or unique ID in filename if needed
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"blog_content_{timestamp}.md" # Use .md extension for markdown
+            href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
             st.markdown(href, unsafe_allow_html=True)
 
+
     def _handle_chatbot_input(self):
+        # (Keep this method as it was)
         user_message = st.chat_input("Enter your message:")
         if user_message:
-            self.session_history.add_user_message(user_message)
-            with st.chat_message("user"):
-                st.markdown(user_message, unsafe_allow_html=True)
-            self._process_graph_stream(HumanMessage(content=user_message))
+            # Use the RunnableWithMessageHistory directly if available
+            if hasattr(self, 'with_message_history') and self.with_message_history:
+                 with st.chat_message("user"):
+                      st.markdown(user_message, unsafe_allow_html=True)
+                 with st.chat_message("assistant"):
+                      with st.spinner("Processing..."):
+                           response = self.with_message_history.invoke(
+                                {"messages": [HumanMessage(content=user_message)]},
+                                self.config # Pass the config containing session/thread ID
+                           )
+                           # Extract the last message assuming it's the AI response
+                           ai_message = response.get("messages", [])[-1]
+                           if ai_message:
+                                st.markdown(ai_message.content)
+                           else:
+                                st.markdown("Sorry, I couldn't process that.")
+            else:
+                 # Fallback or handle error if RunnableWithMessageHistory isn't set up
+                 st.error("Chat history handling not configured correctly.")
+
 
     def _process_graph_stream(self, input_message=None):
-        with st.spinner("Processing..."):
+         # This specific method might be less relevant if using RunnableWithMessageHistory
+         # Keep it for potential fallback or direct graph streaming if needed
+         with st.spinner("Processing..."):
             try:
                 input_data = {"messages": [input_message]} if input_message else None
                 for event in self.graph.stream(input_data, self.config):
                     logger.info(f"Graph event: {event}")
                     for node, state in event.items():
                         if "messages" in state and state["messages"]:
-                            with st.chat_message("assistant"):
-                                content = state["messages"][-1].content
-                                st.markdown(content)
-                            self.session_history.add_ai_message(content)
+                            # Assuming the last message is the one to display
+                            last_message = state["messages"][-1]
+                            # Check if it's an AI message before adding to history/displaying
+                            if isinstance(last_message, AIMessage):
+                                 with st.chat_message("assistant"):
+                                      st.markdown(last_message.content)
+                                # Add to history (if managing history manually - less likely now)
+                                # self.session_history.add_ai_message(last_message.content)
             except Exception as e:
                 logger.error(f"Error in graph streaming: {e}")
                 st.error(f"Error processing workflow: {e}")

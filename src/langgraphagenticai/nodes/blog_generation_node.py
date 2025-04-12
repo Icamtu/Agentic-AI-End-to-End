@@ -153,7 +153,9 @@ class BlogGenerationNode:
                     "tone_style": temp_requirements.get("tone_style", requirements["tone_style"]),
                     "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
                     "structure": temp_requirements.get("structure", requirements["structure"]),
-                    "feedback": temp_requirements.get("feedback", requirements["feedback"])
+                    "feedback": temp_requirements.get("feedback", requirements["feedback"]),
+                    "initial_draft": "",  # Reset initial_draft
+                    "completed_sections": []  # Reset completed_sections
                 })
                 logger.info(f"Processed requirements input: {requirements}")
         except json.JSONDecodeError:
@@ -225,11 +227,26 @@ class BlogGenerationNode:
     
   
     def synthesizer(self, state: State) -> dict:
-        """Synthesize full report from sections."""
-        completed_sections = state["completed_sections"]
-        initial_draft = "\n\n---\n\n".join(completed_sections)
-        logger.info(f"Synthesized report: {initial_draft}")
-        return {"initial_draft": initial_draft}
+            """Synthesize full report from sections and clear the sections list."""
+            # Safely get the list, defaulting to empty if it's None or missing
+            completed_sections = state.get("completed_sections", []) 
+            
+            # Handle case where synthesizer might be called unexpectedly with no sections
+            if not completed_sections:
+                logger.warning("Synthesizer called but 'completed_sections' is empty or None.")
+                # Return an empty draft and ensure the sections list is cleared in the state
+                return {"initial_draft": "", "completed_sections": []} 
+
+            # Join the sections to create the draft
+            initial_draft = "\n\n---\n\n".join(completed_sections)
+            logger.info(f"Synthesized report:\n {initial_draft}")
+
+            # Return the generated draft AND explicitly return an empty list 
+            # for completed_sections to update the state, clearing the old sections.
+            return {
+                "initial_draft": initial_draft, 
+                "completed_sections": []  # Explicitly clear the list in the returned state update
+            }
 
     def feedback_collector(self, state: State) -> dict:
         logger.info(f"\n\n----------------:Entered feedback_collector with state:----------------------\n\n{state}")
