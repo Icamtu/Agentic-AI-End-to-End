@@ -136,6 +136,7 @@ class BlogGenerationNode:
         except Exception as e:
             logger.error(f"Error in LLM structure generation: {e}")
             return default_structure
+    
     @log_entry_exit
     def user_input(self, state: State) -> dict:
         """Handle user input, distinguishing between initial requirements and feedback."""
@@ -150,14 +151,15 @@ class BlogGenerationNode:
             "word_count": state.get("word_count", 1000),
             "structure": state.get("structure", "Introduction, Main Content, Conclusion"),
             "feedback": state.get("feedback", "No feedback provided yet."),
-            "initial_draft": "",  # Reset initial_draft
-            "completed_sections": []  # Reset completed_sections
+            # Always reset these values to ensure old content doesn't persist
+            "initial_draft": "",  
+            "completed_sections": []  
         }
         
         # Get the latest message
         user_message = state["messages"][-1].content if state["messages"] else ""
         if not user_message:
-            logger.warning("No user message provided; returning existing requirements")
+            logger.warning("No user message provided; returning existing requirements with reset content")
             return requirements
 
         # Flag to track if the message is feedback
@@ -171,6 +173,10 @@ class BlogGenerationNode:
                 requirements["feedback"] = feedback_data.get("comments", "No feedback provided.")
                 is_feedback = True
                 logger.info(f"Processed feedback message: {requirements['feedback']}")
+                
+                # For feedback, we definitely want to ensure content reset
+                requirements["initial_draft"] = ""
+                requirements["completed_sections"] = []
             else:
                 # Treat as requirements input
                 temp_requirements = {}
@@ -178,6 +184,7 @@ class BlogGenerationNode:
                     if ": " in line:
                         key, value = line.split(": ", 1)
                         temp_requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
+                
                 # Update requirements only for provided fields
                 requirements.update({
                     "topic": temp_requirements.get("topic", requirements["topic"]),
@@ -187,8 +194,9 @@ class BlogGenerationNode:
                     "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
                     "structure": temp_requirements.get("structure", requirements["structure"]),
                     "feedback": temp_requirements.get("feedback", requirements["feedback"]),
-                    "initial_draft": "",  # Reset initial_draft
-                    "completed_sections": []  # Reset completed_sections
+                    # Always reset content for new requirements
+                    "initial_draft": "",  
+                    "completed_sections": []  
                 })
                 logger.info(f"Processed requirements input: {requirements}")
         except json.JSONDecodeError:
@@ -198,6 +206,7 @@ class BlogGenerationNode:
                 if ": " in line:
                     key, value = line.split(": ", 1)
                     temp_requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
+            
             # Update requirements only for provided fields
             requirements.update({
                 "topic": temp_requirements.get("topic", requirements["topic"]),
@@ -206,12 +215,17 @@ class BlogGenerationNode:
                 "tone_style": temp_requirements.get("tone_style", requirements["tone_style"]),
                 "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
                 "structure": temp_requirements.get("structure", requirements["structure"]),
-                "feedback": temp_requirements.get("feedback", requirements["feedback"])
+                "feedback": temp_requirements.get("feedback", requirements["feedback"]),
+                # Always reset content for new requirements
+                "initial_draft": "",  
+                "completed_sections": []  
             })
             logger.info(f"Processed requirements input: {requirements}")
         except Exception as e:
             logger.error(f"Unexpected error processing user message: {e}")
-            # Return existing requirements to avoid crashing
+            # Return existing requirements to avoid crashing, but still clear content
+            requirements["initial_draft"] = ""
+            requirements["completed_sections"] = []
             return requirements
 
         # Update the state with the standardized structure
@@ -220,13 +234,25 @@ class BlogGenerationNode:
         standardized_structure = self.validate_and_standardize_structure(structure_input)
         requirements["structure"] = ", ".join(standardized_structure)
 
-        logger.info(f"Final parsed requirements: {requirements}")
+        # Log the final state that will be returned
+        logger.info(f"Final parsed requirements with reset content: {requirements}")
+        logger.info(f"Completed sections (should be empty): {requirements['completed_sections']}")
+        logger.info(f"Initial draft (should be empty): {requirements['initial_draft']}")
+        
         return requirements
+
     
     @log_entry_exit        
     def orchestrator(self, state: State) -> dict:
         logger.info(f"Executing orchestrator with state: {state}")
         needs_revision = False
+        
+        # Initialize default return values in case of early return or exception
+        return_state = {
+            "sections": [],
+            "completed_sections": [],
+            "initial_draft": ""
+        }
 
         if state.get("messages"):
             last_message_content = state["messages"][-1].content
@@ -241,7 +267,8 @@ class BlogGenerationNode:
 
         if needs_revision:
             logger.info("Orchestrator identified revision cycle: Clearing completed_sections.")
-            state["completed_sections"] = []
+            # Don't modify state directly, include this in return dictionary instead
+            return_state["completed_sections"] = []
 
         structure_list = [s.strip() for s in state["structure"].split(",")]
         section_count = len(structure_list)
@@ -263,20 +290,14 @@ class BlogGenerationNode:
                 SystemMessage(content=prompt),
                 HumanMessage(content=f"Topic: {state['topic']} with feedback {feedback}")
             ])
+            return_state["sections"] = report_sections.sections
+            
         except Exception as e:
             logger.error(f"Error generating plan with LLM: {e}")
-            # Fallback to default or empty plan
-            return {
-                "sections": [],
-                "completed_sections": []
-            }
-
-        return {
-                    "sections": report_sections.sections,
-                    "completed_sections": [],
-                    "initial_draft": ""  
-                }
-
+            # Keep the default empty values in return_state
+        
+        logger.info(f"Orchestrator returning: {return_state}")
+        return return_state
     @log_entry_exit
     def llm_call(self, state: WorkerState) -> dict:
         """Worker writes a section of the report."""
