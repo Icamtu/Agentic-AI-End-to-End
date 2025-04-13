@@ -4,16 +4,47 @@ import logging
 import json
 from datetime import datetime
 import base64
+from src.langgraphagenticai.ui.streamlitui.display_result_blog import DisplayBlogResult
 
-# Assuming display_result_blog.py is in the same directory or accessible in your Python path
-from .display_result_blog import DisplayBlogResult
+import logging
+import functools
+import time
+
 
 logging.basicConfig(
-    level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(), # Logs to console
+        # logging.FileHandler("app.log") # Optional: Logs to a file
+    ]
 )
 
 logger = logging.getLogger(__name__)
+
+def log_entry_exit(func):
+    """
+    A decorator that logs the entry and exit of a function.
+    It also logs the execution time.
+    """
+    @functools.wraps(func) # Preserves function metadata (like __name__, __doc__)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        logger.info(f"\n{'='*20}\n:Entering: {func_name}\n{'='*20}\n")
+        start_time = time.perf_counter() # More precise than time.time()
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.info(f"\n{'='*20}\n:Exiting: {func_name} (Execution Time: {execution_time:.4f} seconds)\n{'='*20}\n")
+            return result
+        except Exception as e:
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.error(f"{'='*20}:Error Exception in {func_name}: {e} (Execution Time: {execution_time:.4f} seconds)", exc_info=True)
+            # Re-raise the exception after logging
+            raise
+    return wrapper
 
 class DisplayResultStreamlit:
     def __init__(self, graph, with_message_history, config, usecase):
@@ -62,7 +93,7 @@ class DisplayResultStreamlit:
         if st.session_state.current_session_id != session_id:
             st.session_state.current_session_id = session_id
         return store[session_id]
-
+    @log_entry_exit
     def display_chat_history(self):
         """Display the chat history from the session."""
         for message in self.session_history.messages:
@@ -70,9 +101,7 @@ class DisplayResultStreamlit:
             with st.chat_message(role):
                 st.markdown(message.content, unsafe_allow_html=True)
 
-    # Inside langgraphagenticai/ui/streamlitui/display_result.py
-# Replace the existing process_user_input method with this:
-
+    @log_entry_exit
     def process_user_input(self):
         """Process user input and display results based on the use case."""
         # st.write("DEBUG: Session State at start of process_user_input:", st.session_state) # Uncomment for Debugging
@@ -97,7 +126,7 @@ class DisplayResultStreamlit:
                 initial_input = st.session_state.get('initial_input_message')
                 if initial_input:
                     input_data = {"messages": [initial_input]}
-                    # logger.info(f"DEBUG: Calling process_graph_events with initial input: {input_data}") # Uncomment for Debugging
+                    logger.info(f"DEBUG: Calling process_graph_events with initial input: {input_data}") # Uncomment for Debugging
                     blog_display.process_graph_events(input_data)
                 else:
                     logger.error("Processing stage reached but initial input message is missing.")
@@ -111,10 +140,7 @@ class DisplayResultStreamlit:
                 # Display draft if available
                 if st.session_state.get("generated_draft"):
                      if not st.session_state.get("feedback_ui_displayed", False):
-                          # Only display the draft and feedback form once per feedback cycle
-                        #   st.markdown("### Draft for Review:")
-                        #   st.markdown(st.session_state["generated_draft"])
-                          st.session_state["feedback_ui_displayed"] = True # Mark UI as displayed
+                        st.session_state["feedback_ui_displayed"] = True # Mark UI as displayed
                      feedback_result = blog_display.process_feedback() # Display feedback form and get result on submit
                 else:
                      st.warning("Waiting for draft to be generated before collecting feedback.")
@@ -141,6 +167,9 @@ class DisplayResultStreamlit:
                             st.session_state["feedback"] = feedback_result.comments
                             st.session_state.current_stage = "processing_feedback"
                             st.session_state['feedback_result'] = None # Clear result
+                            st.session_state["generated_draft"] = None # Clear draft
+                            st.session_state["completed_sections"]=None # Clear completed sections
+                            logger.info(f"{'='*20}\n:session state after revision request:\n {st.session_state}{'='*20}")
                             st.rerun()
                     else:
                          logger.warning("Feedback submitted but no result found in session state.")
@@ -185,7 +214,7 @@ class DisplayResultStreamlit:
         # Handle other use cases (non-blog)
         else:
             self._handle_chatbot_input()
-
+    @log_entry_exit
     def _download_blog_content(self, blog_content):
         # (Keep this method as it was)
         if blog_content:
@@ -197,7 +226,7 @@ class DisplayResultStreamlit:
             href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
             st.markdown(href, unsafe_allow_html=True)
 
-
+    @log_entry_exit
     def _handle_chatbot_input(self):
         # (Keep this method as it was)
         user_message = st.chat_input("Enter your message:")
@@ -223,6 +252,7 @@ class DisplayResultStreamlit:
                  st.error("Chat history handling not configured correctly.")
 
 
+    @log_entry_exit
     def _process_graph_stream(self, input_message=None):
          # This specific method might be less relevant if using RunnableWithMessageHistory
          # Keep it for potential fallback or direct graph streaming if needed

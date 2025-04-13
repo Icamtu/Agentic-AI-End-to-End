@@ -7,6 +7,45 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 import logging
 import json
+import logging
+import functools
+import time
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(), # Logs to console
+        # logging.FileHandler("app.log") # Optional: Logs to a file
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+def log_entry_exit(func):
+    """
+    A decorator that logs the entry and exit of a function.
+    It also logs the execution time.
+    """
+    @functools.wraps(func) # Preserves function metadata (like __name__, __doc__)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        logger.info(f"\n{'='*20}\n:Entering: {func_name}\n{'='*20}\n")
+        start_time = time.perf_counter() # More precise than time.time()
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.info(f"\n{'='*20}\n:Exiting: {func_name} (Execution Time: {execution_time:.4f} seconds)\n{'='*20}\n")
+            return result
+        except Exception as e:
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.error(f"{'='*20}:Error Exception in {func_name}: {e} (Execution Time: {execution_time:.4f} seconds)", exc_info=True)
+            # Re-raise the exception after logging
+            raise
+    return wrapper
 
 logging.basicConfig(
     level=logging.INFO,  # Set the minimum log level to INFO
@@ -23,7 +62,7 @@ class BlogGraphBuilder:
         self.llm = llm
         self.memory = memory if memory is not None else MemorySaver()
         
-
+    @log_entry_exit
     def validate_and_standardize_structure(self, user_input: str) -> list:
         """
         Uses an LLM to interpret user input and generate a standardized list of blog section names.
@@ -106,7 +145,7 @@ class BlogGraphBuilder:
             logger.error(f"Error in LLM structure generation: {e}")
             return default_structure
 
-
+    @log_entry_exit
     def build_graph(self):
         """
         Builds a graph for the Blog Generation use case.

@@ -5,15 +5,45 @@ import markdown  # Added here to ensure it's available for HTML conversion
 import json
 from pydantic import BaseModel, Field
 
+import logging
+import functools
+import time
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),  # Logs to the console
-        logging.FileHandler("app.log")  # Logs to a file
+        logging.StreamHandler(), # Logs to console
+        # logging.FileHandler("app.log") # Optional: Logs to a file
     ]
 )
+
 logger = logging.getLogger(__name__)
+
+def log_entry_exit(func):
+    """
+    A decorator that logs the entry and exit of a function.
+    It also logs the execution time.
+    """
+    @functools.wraps(func) # Preserves function metadata (like __name__, __doc__)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        logger.info(f"\n{'='*20}\n:Entering: {func_name}\n{'='*20}\n")
+        start_time = time.perf_counter() # More precise than time.time()
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.info(f"\n{'='*20}\n:Exiting: {func_name} (Execution Time: {execution_time:.4f} seconds)\n{'='*20}\n")
+            return result
+        except Exception as e:
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.error(f"{'='*20}:Error Exception in {func_name}: {e} (Execution Time: {execution_time:.4f} seconds)", exc_info=True)
+            # Re-raise the exception after logging
+            raise
+    return wrapper
 
 class ReviewFeedback(BaseModel):
     approved: bool = Field(description="Approval status: True for approved, False for rejected")
@@ -46,11 +76,11 @@ class DisplayBlogResult:
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
-
+    @log_entry_exit
     def collect_blog_requirements(self):
         """Collect blog requirements from the user."""
         st.markdown("## Stage 1: Blog Requirements")
-        with st.expander("Stage 1: Blog Requirements", expanded=False):
+        with st.expander("Stage 1: Blog Requirements", expanded=True):
             st.info("ℹ️ Fill in the details below to generate your blog post")
 
             with st.form("blog_requirements_form"):
@@ -102,29 +132,19 @@ class DisplayBlogResult:
                     logger.info(f"\n\n--------------:Blog requirements collected:------------------\n{message.content}--------------------\n\n")
                     # Show summary
                     st.success("✅ Blog requirements submitted successfully!")
-                    st.markdown("### Requirements Summary")
-                    requirements_summary = {
-                        "Topic": topic,
-                        "Objective": objective,
-                        "Target Audience": target_audience,
-                        "Tone & Style": tone_style,
-                        "Word Count": f"{word_count} words",
-                        "Structure": structure or "Default"
-                    }
-                    print(message)
-                    for key, value in requirements_summary.items():
-                        st.write(f"**{key}:** {value}")
 
                     return message
         return None
-
+    
+    @log_entry_exit
     def _handle_approved_click(self):
         print("\n\n----approved button ON_CLICK call back executed----\n\n")
         logger.info("----approved button ON_CLICK call back executed----")
         st.session_state['feedback_result'] = ReviewFeedback(approved=True, comments=st.session_state.get('feedback'))
         st.session_state["feedback_submitted"] = True 
         print(f"\n\n----------exiting _handle_approved_click function{st.session_state['feedback_result']}---------------\n\n")
-
+    
+    @log_entry_exit
     def _handle_revised_click(self):
     
         print("\n\n----Revised button ON_CLICK call back executed----\n\n")
@@ -136,7 +156,7 @@ class DisplayBlogResult:
 
     # Inside langgraphagenticai/ui/streamlitui/display_result_blog.py
 # Replace the existing process_graph_events method with this:
-
+    @log_entry_exit
     def process_graph_events(self, input_data=None):
         """Processes graph events, handling initial runs and resumes."""
         try:
@@ -207,7 +227,7 @@ class DisplayBlogResult:
             # Optionally reset state to allow user to retry
             # st.session_state.current_stage = "requirements"
             # st.session_state.blog_requirements_collected = False
-
+    @log_entry_exit
     def process_graph_events_with_checkpoint(self, input_data):
         try:
             logger.info(f"Starting graph resume with checkpoint. Input keys: {list(input_data.keys())}")
@@ -235,7 +255,7 @@ class DisplayBlogResult:
             st.error(f"⚠️ Error resuming workflow: {e}")
             return "error"
             
-
+    @log_entry_exit
     def process_feedback(self):
         """Process user feedback on the generated blog draft."""
         print("\n\n----blog_display process_feedback function entered----\n\n")

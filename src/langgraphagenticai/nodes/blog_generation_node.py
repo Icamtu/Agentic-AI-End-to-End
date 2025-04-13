@@ -1,4 +1,3 @@
-import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.constants import Send
 from src.langgraphagenticai.state.state import State, WorkerState, Sections, Section  # Import from state.py
@@ -9,12 +8,45 @@ from datetime import datetime
 from typing import List
 
 
+import logging
+import functools
+import time
+
+
 logging.basicConfig(
-    level=logging.INFO,  # Set the minimum log level to INFO
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(), # Logs to console
+        # logging.FileHandler("app.log") # Optional: Logs to a file
+    ]
 )
 
 logger = logging.getLogger(__name__)
+
+def log_entry_exit(func):
+    """
+    A decorator that logs the entry and exit of a function.
+    It also logs the execution time.
+    """
+    @functools.wraps(func) # Preserves function metadata (like __name__, __doc__)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        logger.info(f"\n{'='*20}\n:Entering: {func_name}\n{'='*20}\n")
+        start_time = time.perf_counter() # More precise than time.time()
+        try:
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.info(f"\n{'='*20}\n:Exiting: {func_name} (Execution Time: {execution_time:.4f} seconds)\n{'='*20}\n")
+            return result
+        except Exception as e:
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            logger.error(f"{'='*20}:Error Exception in {func_name}: {e} (Execution Time: {execution_time:.4f} seconds)", exc_info=True)
+            # Re-raise the exception after logging
+            raise
+    return wrapper
 
 class BlogGenerationNode:
     def __init__(self, model):
@@ -22,6 +54,7 @@ class BlogGenerationNode:
         self.llm = model
         self.planner = model.with_structured_output(Sections)
 
+    @log_entry_exit
     def validate_and_standardize_structure(self, user_input: str) -> List[str]:
         """
         Uses an LLM to interpret user input and generate a standardized list of blog section names.
@@ -103,7 +136,7 @@ class BlogGenerationNode:
         except Exception as e:
             logger.error(f"Error in LLM structure generation: {e}")
             return default_structure
-
+    @log_entry_exit
     def user_input(self, state: State) -> dict:
         """Handle user input, distinguishing between initial requirements and feedback."""
         logger.info(f"Executing user_input with state: {state}")
@@ -189,14 +222,30 @@ class BlogGenerationNode:
 
         logger.info(f"Final parsed requirements: {requirements}")
         return requirements
-            
+    
+    @log_entry_exit        
     def orchestrator(self, state: State) -> dict:
-        """Orchestrator that generates a plan for the report."""
         logger.info(f"Executing orchestrator with state: {state}")
-        logger.info(f"\n{'='*20}:Current feedback in orchestrator state:{'='*20}\n{'='*20}{state.get('feedback')}{'='*20}\n")
-        feedback = state.get("feedback", "No feedback provided yet.")
+        needs_revision = False
+
+        if state.get("messages"):
+            last_message_content = state["messages"][-1].content
+            try:
+                feedback_data = json.loads(last_message_content)
+                if isinstance(feedback_data, dict) and feedback_data.get("approved") is False:
+                    needs_revision = True
+            except json.JSONDecodeError:
+                pass
+            except Exception as e:
+                logger.warning(f"Error checking last message for revision trigger: {e}")
+
+        if needs_revision:
+            logger.info("Orchestrator identified revision cycle: Clearing completed_sections.")
+            state["completed_sections"] = []
+
         structure_list = [s.strip() for s in state["structure"].split(",")]
         section_count = len(structure_list)
+        feedback = state.get("feedback", "No feedback provided yet.")
 
         prompt = (
             f"Create a detailed and structured plan for a blog report consisting of exactly {section_count} sections. "
@@ -205,27 +254,40 @@ class BlogGenerationNode:
             f"Please maintain a {state['tone_style']} tone throughout the writing. "
             f"Aim for a total word count of approximately {state['word_count']} words. "
             f"Follow this specific structure and section names: {', '.join(structure_list)}. "
-            f"Incorporate {state['feedback']} to enhance the quality of the content. "
-            f"Please refrain from adding any extra sections or altering the section names unless {state['feedback']} is provided."
+            f"Incorporate {feedback} to enhance the quality of the content. "
+            f"Please refrain from adding any extra sections or altering the section names unless {feedback} is provided."
         )
 
-        
-        report_sections = self.planner.invoke([
-            SystemMessage(content=prompt),
-            HumanMessage(content=f"Topic: {state['topic']} with feedback {feedback}")
-        ])
-        logger.info(f"Report Sections: {report_sections}")
-        return {"sections": report_sections.sections}
+        try:
+            report_sections = self.planner.invoke([
+                SystemMessage(content=prompt),
+                HumanMessage(content=f"Topic: {state['topic']} with feedback {feedback}")
+            ])
+        except Exception as e:
+            logger.error(f"Error generating plan with LLM: {e}")
+            # Fallback to default or empty plan
+            return {
+                "sections": [],
+                "completed_sections": []
+            }
 
+        return {
+                    "sections": report_sections.sections,
+                    "completed_sections": [],
+                    "initial_draft": ""  
+                }
+
+    @log_entry_exit
     def llm_call(self, state: WorkerState) -> dict:
         """Worker writes a section of the report."""
         section = self.llm.invoke([
             SystemMessage(content="Write a report section following the provided name and description. Include no preamble for each section. Use markdown formatting."),
             HumanMessage(content=f"Here is the section name: {state['section'].name} and description: {state['section'].description}")
         ])
-        return {"completed_sections": [section.content]}
+        logger.info(f"\n{'='*20}:llm_call output:{'='*20}\nGenerated section: {section.content}\n{'='*20}\n")
+        return {"completed_sections": state.get("completed_sections", []) + [section.content]}
     
-  
+    @log_entry_exit
     def synthesizer(self, state: State) -> dict:
             """Synthesize full report from sections and clear the sections list."""
             # Safely get the list, defaulting to empty if it's None or missing
@@ -236,10 +298,27 @@ class BlogGenerationNode:
                 logger.warning("Synthesizer called but 'completed_sections' is empty or None.")
                 # Return an empty draft and ensure the sections list is cleared in the state
                 return {"initial_draft": "", "completed_sections": []} 
+            
+
+            
+            logger.info(f"Synthesizing report with sections: {completed_sections}")
+
+            logger.info("SYNTHESIZER DEBUG:")
+            logger.info(f"completed_sections count: {len(completed_sections)}")
+            for i, section in enumerate(completed_sections):
+                logger.info(f"Section {i+1}:\n{section}\n{'='*20}")
+
 
             # Join the sections to create the draft
             initial_draft = "\n\n---\n\n".join(completed_sections)
             logger.info(f"Synthesized report:\n {initial_draft}")
+
+
+            logger.info("SYNTHESIZER DEBUG:")
+            logger.info(f"completed_sections count: {len(completed_sections)}")
+            for i, section in enumerate(completed_sections):
+                logger.info(f"Section {i+1}:\n{section}\n{'='*20}")
+
 
             # Return the generated draft AND explicitly return an empty list 
             # for completed_sections to update the state, clearing the old sections.
@@ -247,7 +326,7 @@ class BlogGenerationNode:
                 "initial_draft": initial_draft, 
                 "completed_sections": []  # Explicitly clear the list in the returned state update
             }
-
+    @log_entry_exit
     def feedback_collector(self, state: State) -> dict:
         logger.info(f"\n\n----------------:Entered feedback_collector with state:----------------------\n\n{state}")
         logger.info(f"Message count: {len(state.get('messages', []))}")
@@ -283,7 +362,7 @@ class BlogGenerationNode:
 
         logger.info("No new feedback message found; returning default values")
         return {"feedback": "", "draft_approved": False, "final_report": ""}
-
+    @log_entry_exit
     def file_generator(self, state: State) -> dict:
         """Generates the final report and ends the process."""
         final_report = state["final_report"]
@@ -291,12 +370,12 @@ class BlogGenerationNode:
         logger.info(f"Final Report Generated:\n{final_report}")
         return {"final_report_path": "report.md"} # Simulate saving to a file
 
-    # Conditional edge function to create llm_call workers
+    @log_entry_exit # Conditional edge function to create llm_call workers
     def assign_workers(self, state: State):
         """Assign a worker to each section in the plan."""
         return [Send("llm_call", {"section": s}) for s in state["sections"]]
 
-    # Conditional edge for feedback loop
+    @log_entry_exit# Conditional edge for feedback loop
     def route_feedback(self, state: State):
         """Route based on whether draft is approved."""
         draft_approved = state.get('draft_approved', False)
