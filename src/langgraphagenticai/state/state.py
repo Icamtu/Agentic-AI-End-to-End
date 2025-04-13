@@ -33,7 +33,3 @@ class State(TypedDict):
     final_report: str  # Final report
     draft_approved: bool  # Whether the draft is approved
 
-# Worker state
-class WorkerState(TypedDict):
-    section: Section
-    completed_sections: Annotated[List[str], operator.add]

@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.constants import Send
-from src.langgraphagenticai.state.state import State, WorkerState, Sections, Section  # Import from state.py
+from src.langgraphagenticai.state.state import State, Sections, Section  # Import from state.py
 from langchain_core.messages import SystemMessage, HumanMessage
 import streamlit as st
 import json
@@ -299,13 +299,15 @@ class BlogGenerationNode:
         logger.info(f"Orchestrator returning: {return_state}")
         return return_state
     @log_entry_exit
-    def llm_call(self, state: WorkerState) -> dict:
+    def llm_call(self, state: State) -> dict:
         """Worker writes a section of the report."""
         section = self.llm.invoke([
             SystemMessage(content="Write a report section following the provided name and description. Include no preamble for each section. Use markdown formatting."),
             HumanMessage(content=f"Here is the section name: {state['section'].name} and description: {state['section'].description}")
         ])
         logger.info(f"\n{'='*20}:llm_call output:{'='*20}\nGenerated section: {section.content}\n{'='*20}\n")
+        logger.info(f"\n---------------------state[completed_sections]:---------------------------- \n{state.get('completed_sections', [])}")
+
         return {"completed_sections": state.get("completed_sections", []) + [section.content]}
     
     @log_entry_exit
@@ -333,13 +335,6 @@ class BlogGenerationNode:
             # Join the sections to create the draft
             initial_draft = "\n\n---\n\n".join(completed_sections)
             logger.info(f"Synthesized report:\n {initial_draft}")
-
-
-            logger.info("SYNTHESIZER DEBUG:")
-            logger.info(f"completed_sections count: {len(completed_sections)}")
-            for i, section in enumerate(completed_sections):
-                logger.info(f"Section {i+1}:\n{section}\n{'='*20}")
-
 
             # Return the generated draft AND explicitly return an empty list 
             # for completed_sections to update the state, clearing the old sections.
@@ -394,6 +389,11 @@ class BlogGenerationNode:
     @log_entry_exit # Conditional edge function to create llm_call workers
     def assign_workers(self, state: State):
         """Assign a worker to each section in the plan."""
+        logger.info(f"\n{'='*10} State before assigning workers {'='*10}")
+        logger.info(f"  Current sections plan: {len(state.get('sections', []))} sections")
+        # Log the completed_sections list specifically
+        logger.info(f"  Completed Sections before dispatch: {state.get('completed_sections', [])}")
+        logger.info(f"{'='*40}\n")
         return [Send("llm_call", {"section": s}) for s in state["sections"]]
 
     @log_entry_exit# Conditional edge for feedback loop
