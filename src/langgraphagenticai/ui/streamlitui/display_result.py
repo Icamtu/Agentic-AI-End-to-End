@@ -226,50 +226,30 @@ class DisplayResultStreamlit:
             href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
             st.markdown(href, unsafe_allow_html=True)
 
+
+
     @log_entry_exit
     def _handle_chatbot_input(self):
-        # (Keep this method as it was)
         user_message = st.chat_input("Enter your message:")
         if user_message:
-            # Use the RunnableWithMessageHistory directly if available
-            if hasattr(self, 'with_message_history') and self.with_message_history:
-                 with st.chat_message("user"):
-                      st.markdown(user_message, unsafe_allow_html=True)
-                 with st.chat_message("assistant"):
-                      with st.spinner("Processing..."):
-                           response = self.with_message_history.invoke(
-                                {"messages": [HumanMessage(content=user_message)]},
-                                self.config # Pass the config containing session/thread ID
-                           )
-                           # Extract the last message assuming it's the AI response
-                           ai_message = response.get("messages", [])[-1]
-                           if ai_message:
-                                st.markdown(ai_message.content)
-                           else:
-                                st.markdown("Sorry, I couldn't process that.")
-            else:
-                 # Fallback or handle error if RunnableWithMessageHistory isn't set up
-                 st.error("Chat history handling not configured correctly.")
-
+            self.session_history.add_user_message(user_message)
+            with st.chat_message("user"):
+                st.markdown(user_message, unsafe_allow_html=True)
+            self._process_graph_stream(HumanMessage(content=user_message))
 
     @log_entry_exit
     def _process_graph_stream(self, input_message=None):
-         
-         with st.spinner("Processing..."):
+        with st.spinner("Processing..."):
             try:
                 input_data = {"messages": [input_message]} if input_message else None
                 for event in self.graph.stream(input_data, self.config):
                     logger.info(f"Graph event: {event}")
                     for node, state in event.items():
                         if "messages" in state and state["messages"]:
-                            # Assuming the last message is the one to display
-                            last_message = state["messages"][-1]
-                            # Check if it's an AI message before adding to history/displaying
-                            if isinstance(last_message, AIMessage):
-                                 with st.chat_message("assistant"):
-                                      st.markdown(last_message.content)
-                                # Add to history (if managing history manually - less likely now)
-                                # self.session_history.add_ai_message(last_message.content)
+                            with st.chat_message("assistant"):
+                                content = state["messages"][-1].content
+                                st.markdown(content)
+                            self.session_history.add_ai_message(content)
             except Exception as e:
                 logger.error(f"Error in graph streaming: {e}")
                 st.error(f"Error processing workflow: {e}")
