@@ -207,24 +207,14 @@ class DisplayResultStreamlit:
                 if st.session_state.get("blog_content"):
                     st.markdown("### Final Blog Content:")
                     st.markdown(st.session_state["blog_content"])
-                    self._download_blog_content(st.session_state["blog_content"]) # Add download button
+                    blog_display._download_blog_content(st.session_state["blog_content"]) # Add download button
                 else:
                     st.warning("Final blog content is not available.")
 
         # Handle other use cases (non-blog)
         else:
             self._handle_chatbot_input()
-    @log_entry_exit
-    def _download_blog_content(self, blog_content):
-        # (Keep this method as it was)
-        if blog_content:
-            import base64 # Ensure import
-            b64 = base64.b64encode(blog_content.encode()).decode()
-            # Use a timestamp or unique ID in filename if needed
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"blog_content_{timestamp}.md" # Use .md extension for markdown
-            href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
-            st.markdown(href, unsafe_allow_html=True)
+
 
 
 

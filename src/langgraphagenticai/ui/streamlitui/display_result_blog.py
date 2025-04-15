@@ -4,7 +4,7 @@ import logging
 import markdown  # Added here to ensure it's available for HTML conversion
 import json
 from pydantic import BaseModel, Field
-
+from datetime import datetime
 import logging
 import functools
 import time
@@ -76,9 +76,31 @@ class DisplayBlogResult:
         for key, value in defaults.items():
             if key not in st.session_state:
                 st.session_state[key] = value
+    
+    def show_sidebar_progress(self):
+        st.sidebar.markdown("## 🚀 Workflow Progress")
+
+        stages = [
+            ("requirements", "1️⃣ Collect Requirements"),
+            ("processing", "2️⃣ Generating Blog"),
+            ("feedback", "3️⃣ Feedback Review"),
+            ("complete", "✅ Finalized"),
+        ]
+
+        current_stage = st.session_state.get("current_stage", "requirements")
+
+        for key, label in stages:
+            if key == current_stage:
+                st.sidebar.success(f"**{label}**")
+            elif stages.index((key, label)) < stages.index((current_stage, dict(stages)[current_stage])):
+                st.sidebar.markdown(f"✅ {label}")
+            else:
+                st.sidebar.markdown(f"🔲 {label}")
+
     @log_entry_exit
     def collect_blog_requirements(self):
         """Collect blog requirements from the user."""
+        self.show_sidebar_progress()
         st.markdown("## Stage 1: Blog Requirements")
         with st.expander("Stage 1: Blog Requirements", expanded=True):
             st.info("ℹ️ Fill in the details below to generate your blog post")
@@ -154,23 +176,20 @@ class DisplayBlogResult:
         print(f"\n\n----------feedback_submitted: {st.session_state['feedback_submitted']} & Exiting _handle_revised_click function with {st.session_state['feedback_result']}---------------\n\n")
    
 
-    # Inside langgraphagenticai/ui/streamlitui/display_result_blog.py
-# Replace the existing process_graph_events method with this:
-    @log_entry_exit
+
     def process_graph_events(self, input_data=None):
         """Processes graph events, handling initial runs and resumes."""
         try:
             if not input_data:
                 logger.warning("process_graph_events called with no input data.")
-                return # Or handle appropriately
+                return 
 
             logger.info(f"Starting graph processing/resuming with input keys: {list(input_data.keys())}")
 
             progress_bar = st.progress(0)
             last_node_output = None # To store the output of the last node before interrupt
 
-            # Stream events from the graph using the input data and config
-            # LangGraph's checkpointer (MemorySaver) handles state automatically based on config
+
             for i, event in enumerate(self.graph.stream(input_data, self.config)):
                 logger.info(f"Graph event received: #{i+1}")
                 event_key = list(event.keys())[0]
@@ -203,13 +222,14 @@ class DisplayBlogResult:
                     st.session_state.content_displayed = True # Flag that content is ready
 
                 # Check for graph completion (reaching the end or a specific final node)
-                if event_key == "file_generator": #or event_key == END: # Adjust 'file_generator' if needed
+                if event_key == "file_generator": 
+                    
                     logger.info("Graph processing complete.")
                     if last_node_output and "final_report" in last_node_output:
                         st.session_state["blog_content"] = last_node_output["final_report"]
                     st.session_state.current_stage = "complete"
                     progress_bar.progress(1.0)
-                    st.rerun() # Rerun to show completion message/final content
+                    st.rerun() 
                     return # Stop processing
 
             # If loop finishes without interrupt or explicit end node signal
@@ -224,9 +244,7 @@ class DisplayBlogResult:
         except Exception as e:
             logger.exception(f"Error in graph streaming: {e}")
             st.error(f"⚠️ Error processing workflow: {e}")
-            # Optionally reset state to allow user to retry
-            # st.session_state.current_stage = "requirements"
-            # st.session_state.blog_requirements_collected = False
+            
     @log_entry_exit
     def process_graph_events_with_checkpoint(self, input_data):
         try:
@@ -258,6 +276,7 @@ class DisplayBlogResult:
     @log_entry_exit
     def process_feedback(self):
         """Process user feedback on the generated blog draft."""
+        self.show_sidebar_progress()
         print("\n\n----blog_display process_feedback function entered----\n\n")
         logger.info("---blog_display process_feedback function entered ----\n\n")
         
@@ -282,3 +301,16 @@ class DisplayBlogResult:
                 st.button("Submit Revision Request", on_click=self._handle_revised_click, key="blog_feedback_revise_button")
         
         return st.session_state.get('feedback_result')
+    
+    @log_entry_exit
+    def _download_blog_content(self, blog_content):
+        """Create a download link for the blog content."""
+        self.show_sidebar_progress()
+        if blog_content:
+            import base64 # Ensure import
+            b64 = base64.b64encode(blog_content.encode()).decode()
+            # Use a timestamp or unique ID in filename if needed
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"blog_content_{timestamp}.md" # Use .md extension for markdown
+            href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
+            st.markdown(href, unsafe_allow_html=True)
