@@ -1,7 +1,7 @@
 # src/langgraphagenticai/graph/graph_builder_blog.py
 from langgraph.graph import StateGraph, START, END
 from src.langgraphagenticai.nodes.blog_generation_node import BlogGenerationNode
-from src.langgraphagenticai.state.state import State
+from src.langgraphagenticai.state.state import BlogState as State
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage

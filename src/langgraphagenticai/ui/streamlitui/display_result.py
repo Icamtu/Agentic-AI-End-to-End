@@ -254,8 +254,7 @@ class DisplayResultStreamlit:
 
     @log_entry_exit
     def _process_graph_stream(self, input_message=None):
-         # This specific method might be less relevant if using RunnableWithMessageHistory
-         # Keep it for potential fallback or direct graph streaming if needed
+         
          with st.spinner("Processing..."):
             try:
                 input_data = {"messages": [input_message]} if input_message else None

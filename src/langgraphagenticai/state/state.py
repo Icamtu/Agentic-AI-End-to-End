@@ -3,6 +3,10 @@ import operator
 from pydantic import BaseModel, Field
 from langgraph.graph.message import add_messages
 
+class State(TypedDict):
+
+    messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
+
 # Schema for structured output to use in planning
 class Section(BaseModel):
     name: str = Field(description="Name for this section of the report.")
@@ -12,9 +16,9 @@ class Sections(BaseModel):
     sections: List[Section] = Field(description="Sections of the report.")
 
 # Graph state
-class State(TypedDict):
+class BlogState(TypedDict):
 
-    messages: Annotated[list, add_messages] # Chat history including user inputs and AI responses
+    messages: Annotated[list, add_messages] 
     #inputs
     topic: str  # Report topic from user input
     objective: str  # Objective from user input
