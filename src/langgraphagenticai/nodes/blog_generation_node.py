@@ -199,28 +199,6 @@ class BlogGenerationNode:
                     "completed_sections": []  
                 })
                 logger.info(f"Processed requirements input: {requirements}")
-        except json.JSONDecodeError:
-            # Not a JSON feedback message, treat as requirements
-            temp_requirements = {}
-            for line in user_message.split("\n"):
-                if ": " in line:
-                    key, value = line.split(": ", 1)
-                    temp_requirements[key.lower().replace(" & ", "_").replace(" ", "_")] = value
-            
-            # Update requirements only for provided fields
-            requirements.update({
-                "topic": temp_requirements.get("topic", requirements["topic"]),
-                "objective": temp_requirements.get("objective", requirements["objective"]),
-                "target_audience": temp_requirements.get("target_audience", requirements["target_audience"]),
-                "tone_style": temp_requirements.get("tone_style", requirements["tone_style"]),
-                "word_count": int(temp_requirements.get("word_count", requirements["word_count"])),
-                "structure": temp_requirements.get("structure", requirements["structure"]),
-                "feedback": temp_requirements.get("feedback", requirements["feedback"]),
-                # Always reset content for new requirements
-                "initial_draft": "",  
-                "completed_sections": []  
-            })
-            logger.info(f"Processed requirements input: {requirements}")
         except Exception as e:
             logger.error(f"Unexpected error processing user message: {e}")
             # Return existing requirements to avoid crashing, but still clear content
@@ -228,8 +206,6 @@ class BlogGenerationNode:
             requirements["completed_sections"] = []
             return requirements
 
-        # Update the state with the standardized structure
-        # Use existing structure for feedback messages to avoid resetting it
         structure_input = requirements["structure"] if is_feedback else user_message
         standardized_structure = self.validate_and_standardize_structure(structure_input)
         requirements["structure"] = ", ".join(standardized_structure)
@@ -246,6 +222,8 @@ class BlogGenerationNode:
     def orchestrator(self, state: State) -> dict:
         logger.info(f"Executing orchestrator with state: {state}")
         needs_revision = False
+
+        logger.info(f"Orchestrator received completed_sections: {state.get('completed_sections', [])}")
         
         # Initialize default return values in case of early return or exception
         return_state = {
@@ -253,6 +231,7 @@ class BlogGenerationNode:
             "completed_sections": [],
             "initial_draft": ""
         }
+        needs_revision=False
 
         if state.get("messages"):
             last_message_content = state["messages"][-1].content
@@ -322,26 +301,41 @@ class BlogGenerationNode:
                 # Return an empty draft and ensure the sections list is cleared in the state
                 return {"initial_draft": "", "completed_sections": []} 
             
+            # Determine the expected number of sections based on the current plan
+            expected_section_count = len(state.get("sections", []))
 
+            # If we received more sections than expected (likely due to revision state issue),
+            # take only the last 'expected_section_count' sections.
+            if expected_section_count > 0 and len(completed_sections) > expected_section_count:
+                logger.warning(f"Synthesizer received {len(completed_sections)} sections, "
+                               f"but expected {expected_section_count}. Using the last {expected_section_count}.")
+                sections_to_use = completed_sections[-expected_section_count:]
+            else:
+                # Otherwise, use all received sections (normal first run or correct state)
+                sections_to_use = completed_sections
             
             logger.info(f"Synthesizing report with sections: {completed_sections}")
 
+            logger.info(f"Synthesizing report with {len(sections_to_use)} sections:")
             logger.info("SYNTHESIZER DEBUG:")
             logger.info(f"completed_sections count: {len(completed_sections)}")
-            for i, section in enumerate(completed_sections):
-                logger.info(f"Section {i+1}:\n{section}\n{'='*20}")
+            for i, section in enumerate(sections_to_use):
+                # Log only the first few characters to avoid overly long logs
+                logger.info(f"Section {i+1} (start): {section[:100]}...")
+                logger.info(f"{'='*20}")
 
 
-            # Join the sections to create the draft
-            initial_draft = "\n\n---\n\n".join(completed_sections)
-            logger.info(f"Synthesized report:\n {initial_draft}")
+            # Join the selected sections to create the draft
+            initial_draft = "\n\n---\n\n".join(sections_to_use)
+            logger.info(f"Synthesized report draft generated (length: {len(initial_draft)}).")
 
-            # Return the generated draft AND explicitly return an empty list 
+            # Return the generated draft AND explicitly return an empty list
             # for completed_sections to update the state, clearing the old sections.
             return {
-                "initial_draft": initial_draft, 
+                "initial_draft": initial_draft,
                 "completed_sections": []  # Explicitly clear the list in the returned state update
             }
+    
     @log_entry_exit
     def feedback_collector(self, state: State) -> dict:
         logger.info(f"\n\n----------------:Entered feedback_collector with state:----------------------\n\n{state}")
@@ -408,3 +402,5 @@ class BlogGenerationNode:
         else:
             logger.info("Draft not approved; routing back to orchestrator for revision")
             return "orchestrator"
+
+    

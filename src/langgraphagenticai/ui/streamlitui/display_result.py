@@ -207,7 +207,7 @@ class DisplayResultStreamlit:
                 if st.session_state.get("blog_content"):
                     st.markdown("### Final Blog Content:")
                     st.markdown(st.session_state["blog_content"])
-                    blog_display._download_blog_content(st.session_state["blog_content"]) # Add download button
+                    self._download_blog_content(st.session_state["blog_content"]) # Add download button
                 else:
                     st.warning("Final blog content is not available.")
 
