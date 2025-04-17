@@ -105,7 +105,7 @@ class LoadStreamlitUI:
                 planning.node('requirements', 'Gather Requirements', fillcolor=planning_color)
                 planning.node('userStories', 'Generate User Stories', fillcolor=planning_color)
                 planning.node('poReview', 'Product Owner Review', shape='diamond', fillcolor=decision_color)
-                planning.node('planning', 'Release Planning', fillcolor=planning_color)
+                planning.node('planning_phase', 'Release Planning', fillcolor=planning_color) # Renamed to avoid conflict with subgraph name
             # Design Phase
             with dot.subgraph(name='cluster_design') as design:
                 design.attr(label='Design', style='filled', fillcolor=design_color, color='black')
@@ -116,8 +116,7 @@ class LoadStreamlitUI:
             # Development Phase
             with dot.subgraph(name='cluster_development') as development:
                 development.attr(label='Development', style='filled', fillcolor=development_color, color='black')
-                development.node('sprint', 'Sprint Planning', fillcolor=development_color)
-                development.node('coding', 'Code Development', fillcolor=development_color)
+                development.node('generateCode', 'Code Development', fillcolor=development_color) # Fixed node ID casing
                 development.node('codeReview', 'Code Review', shape='diamond', fillcolor=decision_color)
                 development.node('codeFix', 'Fix Code Issues', fillcolor=development_color)
                 development.node('securityScan', 'Security Review', fillcolor=development_color)
@@ -135,23 +134,22 @@ class LoadStreamlitUI:
             with dot.subgraph(name='cluster_deployment') as deployment:
                 deployment.attr(label='Deployment', style='filled', fillcolor=deployment_color, color='black')
                 deployment.node('preRelease', 'Pre-Release Checklist', fillcolor=deployment_color)
-                deployment.node('deployment', 'Deployment to Production', fillcolor=deployment_color)
+                deployment.node('deployment_phase', 'Deployment to Production', fillcolor=deployment_color) # Renamed to avoid conflict
                 deployment.node('postDeploy', 'Post-Deployment Verification', fillcolor=deployment_color)
                 deployment.node('maintenance', 'Maintenance & Monitoring', fillcolor=deployment_color)
             # Edges - main flow
             dot.edge('start', 'requirements')
             dot.edge('requirements', 'userStories')
             dot.edge('userStories', 'poReview')
-            dot.edge('poReview', 'planning', label='Approve')
+            dot.edge('poReview', 'planning_phase', label='Approve')
             dot.edge('poReview', 'userStories', label='Reject')
-            dot.edge('planning', 'designDocs')
+            dot.edge('planning_phase', 'designDocs')
             dot.edge('designDocs', 'designReview')
             dot.edge('designReview', 'architecture', label='Approve')
             dot.edge('designReview', 'designRevision', label='Reject')
             dot.edge('designRevision', 'designReview')
-            dot.edge('architecture', 'sprint')
-            dot.edge('sprint', 'coding')
-            dot.edge('coding', 'codeReview')
+            dot.edge('architecture', 'generateCode') # Fixed node ID casing
+            dot.edge('generateCode', 'codeReview') # Fixed node ID casing
             dot.edge('codeReview', 'securityScan', label='Approve')
             dot.edge('codeReview', 'codeFix', label='Reject')
             dot.edge('codeFix', 'codeReview')
@@ -163,9 +161,10 @@ class LoadStreamlitUI:
             dot.edge('qaReview', 'userAcceptance', label='Approve')
             dot.edge('qaReview', 'bugFix', label='Reject')
             dot.edge('bugFix', 'qaReview')
-            dot.edge('userAcceptance', 'preRelease')
-            dot.edge('preRelease', 'deployment')
-            dot.edge('deployment', 'postDeploy')
+            dot.edge('userAcceptance', 'preRelease',level='Approve')
+            dot.edge('userAcceptance', 'testCases',level='Reject')
+            dot.edge('preRelease', 'deployment_phase')
+            dot.edge('deployment_phase', 'postDeploy')
             dot.edge('postDeploy', 'maintenance')
             dot.edge('maintenance', 'start') # Example cycle back to start
 
@@ -237,7 +236,7 @@ class LoadStreamlitUI:
             self.user_controls["selected_llm"] = st.selectbox(
                 "Select LLM", llm_options, help="Choose the language model provider."
             )
-            # ... (rest of LLM/API key selection logic remains the same) ...
+            
             if self.user_controls["selected_llm"] == "Groq":
                 model_options = self.config.get_groq_model_options()
                 self.user_controls["selected_groq_model"] = st.selectbox("Select Model", model_options)

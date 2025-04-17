@@ -8,42 +8,8 @@ from datetime import datetime
 import logging
 import functools
 import time
+from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(), # Logs to console
-        # logging.FileHandler("app.log") # Optional: Logs to a file
-    ]
-)
-
-logger = logging.getLogger(__name__)
-
-def log_entry_exit(func):
-    """
-    A decorator that logs the entry and exit of a function.
-    It also logs the execution time.
-    """
-    @functools.wraps(func) # Preserves function metadata (like __name__, __doc__)
-    def wrapper(*args, **kwargs):
-        func_name = func.__name__
-        logger.info(f"\n{'='*20}\n:Entering: {func_name}\n{'='*20}\n")
-        start_time = time.perf_counter() # More precise than time.time()
-        try:
-            result = func(*args, **kwargs)
-            end_time = time.perf_counter()
-            execution_time = end_time - start_time
-            logger.info(f"\n{'='*20}\n:Exiting: {func_name} (Execution Time: {execution_time:.4f} seconds)\n{'='*20}\n")
-            return result
-        except Exception as e:
-            end_time = time.perf_counter()
-            execution_time = end_time - start_time
-            logger.error(f"{'='*20}:Error Exception in {func_name}: {e} (Execution Time: {execution_time:.4f} seconds)", exc_info=True)
-            # Re-raise the exception after logging
-            raise
-    return wrapper
 
 class ReviewFeedback(BaseModel):
     approved: bool = Field(description="Approval status: True for approved, False for rejected")

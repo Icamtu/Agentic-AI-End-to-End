@@ -4,13 +4,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from src.langgraphagenticai.graph.graph_builder_blog import BlogGraphBuilder
 from src.langgraphagenticai.graph.graph_builder_basic import BasicChatbotGraphBuilder
 from src.langgraphagenticai.graph.graph_bulider_tool import ChatbotWithToolGraphBuilder
-import logging
 
-logging.basicConfig(
-level=logging.INFO,  # Set the minimum log level to INFO
-format='%(asctime)s - %(name)s - %(levelname)s - %(message)s\n'  # Format for log messages
-)
-logger = logging.getLogger(__name__)
+
+
 
 class GraphBuilder:
     def __init__(self, llm: BaseLanguageModel):
@@ -43,5 +39,7 @@ class GraphBuilder:
             return self.tool_builder.build_graph()
         elif usecase == "Blog Generation":
             return self.blog_builder.build_graph()
+        elif usecase == "SDLC":
+            return self.sdlc_builder.build_graph()
         else:
             raise ValueError(f"Unknown use case: {usecase}")

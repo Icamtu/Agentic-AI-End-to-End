@@ -2,11 +2,11 @@
 from src.langgraphagenticai.state.state import State
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
+from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 import logging
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class CodeReviewerNode:
     def __init__(self, model):

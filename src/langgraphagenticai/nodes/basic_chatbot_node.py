@@ -1,9 +1,7 @@
 # src/langgraphagenticai/nodes/basic_chatbot_node.py
 from src.langgraphagenticai.state.state import State
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-import logging
-
-logger = logging.getLogger(__name__)
+from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 
 class BasicChatbotNode:
     def __init__(self, model):
