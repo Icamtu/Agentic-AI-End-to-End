@@ -59,6 +59,7 @@ class SDLCState(BaseModel):
     This class represents the state of a software development project, including the current stage, inputs, artifacts, and feedback.
     
     eg:
+    Requirements are the foundation of any project. They provide a clear understanding of what needs to be built and why. In the context of software development, requirements are typically categorized into four main types:
     1. Project Description:
 
         Definition: A concise and high-level summary of what the project is about. It provides a general understanding of the project's purpose and nature.
@@ -126,6 +127,8 @@ The objectives provide specific, measurable steps to achieve the goals within th
     project_scope: Optional[str] = Field(None, description="Scope of the project.")
     project_objectives: Optional[str] = Field(None, description="Objectives of the project.")
     requirements: Optional[str] = Field(None, description="Detailed project requirements.")
+    generated_requirements: Optional[str] = Field(None, description="Generated requirements based on user input.")
+    user_stories: Optional[str] = Field(None, description="User stories generated based on requirements.")
 
     # Artifacts generated during different SDLC stages
     planning_artifact: Optional[str] = Field(None, description="Artifact generated during the planning stage.")

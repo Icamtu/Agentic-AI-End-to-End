@@ -4,6 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from src.langgraphagenticai.graph.graph_builder_blog import BlogGraphBuilder
 from src.langgraphagenticai.graph.graph_builder_basic import BasicChatbotGraphBuilder
 from src.langgraphagenticai.graph.graph_bulider_tool import ChatbotWithToolGraphBuilder
+from src.langgraphagenticai.graph.graph_builder_sdlc import SdlcGraphBuilder
 
 
 
@@ -15,6 +16,7 @@ class GraphBuilder:
         self.blog_builder = BlogGraphBuilder(self.llm, self.memory)
         self.basic_builder = BasicChatbotGraphBuilder(self.llm, self.memory)
         self.tool_builder = ChatbotWithToolGraphBuilder(self.llm, self.memory)
+        self.sdlc_builder = SdlcGraphBuilder(self.llm, self.memory)
 
     def validate_and_standardize_structure(self, user_input: str) -> list:
         """
