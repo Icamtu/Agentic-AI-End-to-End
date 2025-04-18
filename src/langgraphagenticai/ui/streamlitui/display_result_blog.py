@@ -258,7 +258,7 @@ class DisplayBlogResult:
                 key="revision_comments_area",
                 value=st.session_state.get("revision_comments_area", "Add some reference to it ")
             )
-            st.session_state["feedback"] = feedback_text  # Update session state for graph processing
+            st.session_state["feedback"] = feedback_text  
 
             col1, col2 = st.columns(2)
             with col1:
@@ -280,3 +280,95 @@ class DisplayBlogResult:
             filename = f"blog_content_{timestamp}.md" # Use .md extension for markdown
             href = f'<a href="data:text/markdown;base64,{b64}" download="{filename}">⬇️ Download Blog Content (Markdown)</a>'
             st.markdown(href, unsafe_allow_html=True)
+
+    def handle_blog_workflow(self):
+        """Encapsulate the entire blog workflow logic for use in DisplayResultStreamlit."""
+        # Stage 1: Collect Requirements
+        if st.session_state.current_stage == "requirements":
+            if not st.session_state.blog_requirements_collected:
+                input_message = self.collect_blog_requirements()
+                if input_message:
+                    st.session_state.blog_requirements_collected = True
+                    st.session_state.initial_input_message = input_message
+                    st.session_state.current_stage = "processing"
+                    st.rerun()
+
+        # Stage 2: Initial Processing
+        elif st.session_state.current_stage == "processing":
+            logger.info("Entering processing stage.")
+            initial_input = st.session_state.get('initial_input_message')
+            if initial_input:
+                input_data = {"messages": [initial_input]}
+                logger.info(f"DEBUG: Calling process_graph_events with initial input: {input_data}")
+                self.process_graph_events(input_data)
+            else:
+                logger.error("Processing stage reached but initial input message is missing.")
+                st.error("Error: Initial requirements not found. Please start over.")
+                st.session_state.current_stage = "requirements"
+                st.rerun()
+
+        # Stage 3: Handle Feedback
+        elif st.session_state.current_stage == "feedback":
+            logger.info(f"Entering feedback stage. Submitted: {st.session_state.get('feedback_submitted', False)}")
+            if st.session_state.get("generated_draft"):
+                if not st.session_state.get("feedback_ui_displayed", False):
+                    st.session_state["feedback_ui_displayed"] = True
+                feedback_result = self.process_feedback()
+            else:
+                st.warning("Waiting for draft to be generated before collecting feedback.")
+
+            if st.session_state.get("feedback_submitted"):
+                logger.info("Feedback form submitted.")
+                feedback_result = st.session_state.get('feedback_result')
+                st.session_state["feedback_submitted"] = False
+                st.session_state["feedback_ui_displayed"] = False
+
+                if feedback_result:
+                    if feedback_result.approved:
+                        logger.info("Feedback: Approved")
+                        st.session_state["blog_content"] = st.session_state.get("generated_draft")
+                        st.session_state["generated_draft"] = None
+                        st.session_state.current_stage = "complete"
+                        st.session_state['feedback_result'] = None
+                        st.rerun()
+                    else:
+                        logger.info(f"Feedback: Revision requested - comments: {feedback_result.comments}")
+                        st.session_state["feedback"] = feedback_result.comments
+                        st.session_state.current_stage = "processing_feedback"
+                        st.session_state['feedback_result'] = None
+                        st.session_state["generated_draft"] = None
+                        st.session_state["completed_sections"] = None
+                        logger.info(f"{'='*20}\n:session state after revision request:\n {st.session_state}{'='*20}")
+                        st.rerun()
+                else:
+                    logger.warning("Feedback submitted but no result found in session state.")
+
+        # Stage 4: Process Feedback (Resume Graph)
+        elif st.session_state.current_stage == "processing_feedback":
+            logger.info("Entering processing_feedback stage.")
+            feedback_comment = st.session_state.get("feedback")
+            if feedback_comment is not None:
+                feedback_message = HumanMessage(content=json.dumps({
+                    "approved": False,
+                    "comments": feedback_comment
+                }))
+                input_data = {"messages": [feedback_message]}
+                logger.info(f"Resuming graph with feedback message: {feedback_message.content}")
+                st.session_state["feedback"] = ""
+                self.process_graph_events(input_data=input_data)
+            else:
+                logger.error("Processing feedback stage reached but feedback comments are missing.")
+                st.error("Error: Feedback comments not found. Please provide feedback again.")
+                st.session_state.current_stage = "feedback"
+                st.rerun()
+
+        # Stage 5: Completion
+        elif st.session_state.current_stage == "complete":
+            logger.info("Entering complete stage.")
+            st.success("✅ Blog generation complete!")
+            if st.session_state.get("blog_content"):
+                st.markdown("### Final Blog Content:")
+                st.markdown(st.session_state["blog_content"])
+                self._download_blog_content(st.session_state["blog_content"])
+            else:
+                st.warning("Final blog content is not available.")

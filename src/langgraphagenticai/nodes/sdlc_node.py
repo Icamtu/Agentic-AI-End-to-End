@@ -34,27 +34,43 @@ class SdlcNode:
     def generate_requirements(self, state: State) -> dict:
         """Generate requirements based on user input."""
         logger.info(f"Generating requirements with state: {state}")
+        try:
+            requirements_input = {
+                "project_name": state.project_name if state.project_name is not None else "No project name provided",
+                "project_description": state.project_description if state.project_description is not None else "No project description provided",
+                "project_goals": state.project_goals if state.project_goals is not None else "No project goals provided",
+                "project_scope": state.project_scope if state.project_scope is not None else "No project scope provided",
+                "project_objectives": state.project_objectives if state.project_objectives is not None else "No project objectives provided",
+            }
+            prompt_string = f"Generate detailed requirements for the following project details:\n{json.dumps(requirements_input, indent=2)}"
+            # Construct a list of messages for the LLM
+            messages = [SystemMessage(content="You are an expert project requirements generator."),HumanMessage(content=prompt_string)]
+            state.generated_requirements = self.llm(messages)
+            return {"generated_requirements": state.generated_requirements}
+        except Exception as e:
+            logger.error(f"Error generating requirements: {e}")
+            state.generated_requirements = f"Error generating requirements: {str(e)}"
+            return {"generated_requirements": state.generated_requirements}
 
-        requirements_input = {
-            "project_name": state.project_name if state.project_name is not None else "No project name provided",
-            "project_description": state.project_description if state.project_description is not None else "No project description provided",
-            "project_goals": state.project_goals if state.project_goals is not None else "No project goals provided",
-            "project_scope": state.project_scope if state.project_scope is not None else "No project scope provided",
-            "project_objectives": state.project_objectives if state.project_objectives is not None else "No project objectives provided",
-        }
-        prompt = f"Generate detailed requirements for the following project details:\n{json.dumps(requirements_input, indent=2)}"
-        state.generated_requirements = self.llm(prompt)
-        return {"generated_requirements": state.generated_requirements}
-
+   
     @log_entry_exit
     def generate_user_stories(self, state: State) -> dict:
         """Generate user stories based on the requirements."""
-        logger.info(f"Generating user stories with state: {state}")
+        logger.info("Generating user stories")
 
-        if state.generated_requirements:
-            prompt = f"Generate user stories based on the following requirements:\n{state.generated_requirements}"
-            state.user_stories = self.llm(prompt)
-            return {"user_stories": state.user_stories}
-        else:
-            state.user_stories = "No requirements generated yet."
+        try:
+            if state.generated_requirements:
+                prompt_string = f"Generate user stories based on the following requirements:\n{state.generated_requirements}"
+                messages = [
+                    SystemMessage(content="You are an expert at creating user stories for software development projects. Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].' Ensure the user stories are clear, concise, and cover the key functionalities outlined in the requirements."),
+                    HumanMessage(content=prompt_string)
+                ]
+                state.user_stories = self.llm(messages)
+                return {"user_stories": state.user_stories}
+            else:
+                state.user_stories = "No requirements generated yet."
+                return {"user_stories": state.user_stories}
+        except Exception as e:
+            logger.error(f"Error generating user stories: {e}")
+            state.user_stories = f"Error generating user stories: {str(e)}"
             return {"user_stories": state.user_stories}

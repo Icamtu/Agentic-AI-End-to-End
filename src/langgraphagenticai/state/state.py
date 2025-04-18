@@ -82,13 +82,13 @@ class SDLCState(BaseModel):
         Level of Detail: Specific, quantifiable, and time-bound.
         Example Project: Developing a Mobile Application for a Local Bookstore
 
-Project Description: Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Nellore, to allow customers to browse their inventory, place orders online, and learn about upcoming events.
+Project Description: Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, to allow customers to browse their inventory, place orders online, and learn about upcoming events.
 
 Project Goals:
 
         Increase sales and revenue for The Book Nook.
         Enhance customer engagement and loyalty.
-        Modernize The Book Nook's presence and reach a wider audience in Nellore.
+        Modernize The Book Nook's presence and reach a wider audience in Bangalore.
 Project Scope:
 
 Inclusions:
@@ -127,10 +127,11 @@ The objectives provide specific, measurable steps to achieve the goals within th
     project_scope: Optional[str] = Field(None, description="Scope of the project.")
     project_objectives: Optional[str] = Field(None, description="Objectives of the project.")
     requirements: Optional[str] = Field(None, description="Detailed project requirements.")
-    generated_requirements: Optional[str] = Field(None, description="Generated requirements based on user input.")
     user_stories: Optional[str] = Field(None, description="User stories generated based on requirements.")
 
     # Artifacts generated during different SDLC stages
+    generated_requirements: Optional[str] = Field(None, description="Generated requirements based on user input.")
+    generated_user_stories: Optional[str] = Field(None, description="Generated user stories based on requirements.")
     planning_artifact: Optional[str] = Field(None, description="Artifact generated during the planning stage.")
     design_artifact: Optional[str] = Field(None, description="Artifact generated during the design stage.")
     development_artifact: Optional[str] = Field(None, description="Artifact generated during the development stage.")

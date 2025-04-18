@@ -1,4 +1,4 @@
-# src/langgraphagenticai/graph/graph_builder_blog.py
+# src/langgraphagenticai/graph/graph_builder_sdlc.py
 from langgraph.graph import StateGraph, START, END
 from src.langgraphagenticai.nodes.sdlc_node import SdlcNode
 from src.langgraphagenticai.state.state import SDLCStages, SDLCState as State
@@ -18,7 +18,6 @@ class SdlcGraphBuilder:
     def __init__(self, llm, memory: MemorySaver=None):
         self.llm = llm
         self.memory = memory if memory is not None else MemorySaver()
-        
 
 
     @log_entry_exit
@@ -30,14 +29,23 @@ class SdlcGraphBuilder:
         try:
             if not self.llm:
                 raise ValueError("LLM model not initialized")
-            pass
-            # graph_builder = StateGraph(state_schema=State)
-            # blog_node = BlogGenerationNode(self.llm)
+
+            graph_builder = StateGraph(state_schema=State)
+            sldc_node = SdlcNode(self.llm)
 
             # Add nodes
+            graph_builder.add_node("Requirement", sldc_node.user_input)
+            graph_builder.add_node("GenerateRequirements", sldc_node.generate_requirements)
+            graph_builder.add_node("GenerateUserStories", sldc_node.generate_user_stories)
 
-          
-            return  # Changed from interrupt_after
+            # --- Correct the edges ---
+            graph_builder.add_edge(START, "Requirement")
+            graph_builder.add_edge("Requirement", "GenerateRequirements") 
+            graph_builder.add_edge("GenerateRequirements", "GenerateUserStories") 
+            graph_builder.add_edge("GenerateUserStories", END)
+
+
+            return graph_builder.compile(checkpointer=self.memory)
         except Exception as e:
             logger.error(f"Error building graph: {e}")
             raise
