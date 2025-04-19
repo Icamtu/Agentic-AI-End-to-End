@@ -1,91 +1,17 @@
-**Project Requirements Document for "The Book Nook" Mobile Application**
-
-**Project Overview**
-
-The Book Nook is a local bookstore in Bangalore that aims to develop a user-friendly mobile application to allow customers to browse their inventory, place orders online, and learn about upcoming events. The app should have a clean, modern design and be easy to navigate. The app will also include a feature for customers to sign up for a loyalty program that rewards them with points for every purchase they make.
-
-**Functional Requirements**
-
-1. **User Registration and Login**
-	* The app shall provide a registration feature for new users to create an account with a unique username and password.
-	* Users shall be able to log in to their account using their registered username and password.
-	* The app shall store user credentials securely and comply with data protection regulations.
-2. **Book Catalog Browsing**
-	* The app shall display the bookstore's inventory catalog, allowing users to browse through books by author, title, genre, or keyword search.
-	* The app shall provide filtering options to narrow down search results by book format (hardcover, paperback, e-book), publication date, and price range.
-	* Book details shall include description, author, price, and availability.
-3. **Shopping Cart and Online Ordering**
-	* Users shall be able to add books to a shopping cart and view their cart contents.
-	* The app shall provide a secure online payment gateway for users to complete their purchases.
-	* The app shall send order confirmation notifications to users upon successful payment processing.
-4. **Order History**
-	* The app shall maintain a record of users' past orders, including order date, book titles, and order status.
-	* Users shall be able to view their order history within the app.
-5. **Event Calendar and Notifications**
-	* The app shall display an event calendar featuring upcoming events at The Book Nook, including book launches, author meet-and-greets, and workshops.
-	* Users shall receive push notifications about new events and book arrivals.
-6. **Loyalty Program**
-	* Users shall be able to sign up for The Book Nook's loyalty program within the app.
-	* The app shall track users' loyalty points earned for every purchase made.
-	* The app shall display users' loyalty point balance and redemption options.
-7. **Store Information**
-	* The app shall provide information about The Book Nook's store hours, location, and contact details.
-
-**Non-Functional Requirements**
-
-1. **Performance**
-	* The app shall respond to user input within 2 seconds.
-	* The app shall maintain a minimum of 99.9% uptime.
-2. **Security**
-	* The app shall comply with industry-standard security protocols for online transactions and user data protection.
-	* The app shall encrypt user data and payment information.
-3. **Usability**
-	* The app shall have an intuitive and user-friendly interface.
-	* The app shall provide clear and concise instructions for each feature.
-4. **Compatibility**
-	* The app shall be compatible with the latest versions of Android and iOS.
-	* The app shall be optimized for various screen sizes and devices.
-
-**Integration Requirements**
-
-1. **Inventory Management System Integration**
-	* The app shall integrate with The Book Nook's existing inventory management system.
-	* The app shall synchronize with the inventory system daily to ensure accurate book availability information.
-
-**Documentation Requirements**
-
-1. **User Support Documentation**
-	* The app shall provide basic user support documentation, including FAQs and troubleshooting guides.
-
-**Project Goals and Objectives**
-
-1. **Increase Online Sales**
-	* Increase online sales by 15% within the first six months of the app launch.
-2. **Achieve High User Ratings**
-	* Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch.
-3. **Acquire New Users**
-	* Acquire 500 new registered app users within the first month of app launch.
-4. **Successful Integration**
-	* Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase.
-5. **Compatibility**
-	* Ensure the app is compatible with the latest versions of Android and iOS.
-6. **User Support**
-	* Provide user support documentation and FAQs within the app.
-
-**Assumptions and Dependencies**
-
-1. The Book Nook shall provide access to their existing inventory management system for integration purposes.
-2. The development team shall have necessary resources and expertise to complete the project within the specified timeframe.
-3. The project timeline may be affected by changes in requirements or unforeseen technical challenges.
-
-**Acceptance Criteria**
-
-The project shall be considered complete when the following acceptance criteria are met:
-
-1. The app is fully functional and meets all the specified requirements.
-2. The app is compatible with the latest versions of Android and iOS.
-3. The app has been successfully integrated with The Book Nook's existing inventory management system.
-4. The app has achieved an average user rating of 4.5 stars or higher on both app stores.
-5. The app has met the specified performance, security, and usability requirements.
-
-By satisfying these requirements, The Book Nook mobile application shall provide a seamless and engaging experience for users, increasing online sales, enhancing customer engagement, and modernizing The Book Nook's presence in Bangalore.
+langchain
+langgraph
+langchain_community
+langchain_core
+langchain_groq
+langchain_openai
+langchain_google_genai
+langchain_huggingface 
+langchain_xai
+faiss-cpu
+streamlit
+graphviz
+langgraph
+langgraph-cli[inmem]
+langchain-xai
+typing-extensions>=4.7.0
+markdown
