@@ -95,14 +95,12 @@ class DisplaySdlcResult:
             with st.expander("Generated Requirements"):
                 st.subheader("Generated Requirements")
                 st.markdown(st.session_state["generated_requirements"].content)
-                self._create_download_link(st.session_state["generated_requirements"].content, "requirements.txt", "Download Requirements")
                 if st.button("Save Requirements", key="save_requirements_planning"):  # Unique key
                     self._save_artifact(st.session_state["generated_requirements"].content, "requirements.txt")
         if st.session_state.get("user_stories_generated"):
             with st.expander("Generated User Stories"):
                 st.subheader("Generated User Stories")
                 st.markdown(st.session_state["generated_user_stories"].content)
-                self._create_download_link(st.session_state["generated_user_stories"].content, "user_stories.txt", "Download User Stories")
                 if st.button("Save User Stories", key="save_user_stories_planning"):  # Unique key
                     self._save_artifact(st.session_state["generated_user_stories"].content, "user_stories.txt")
         if not st.session_state.get("requirements_generated") and not st.session_state.get("user_stories_generated"):
@@ -264,43 +262,14 @@ class DisplaySdlcResult:
         st.session_state["requirements_generated"] = requirements is not None
         st.session_state["user_stories_generated"] = user_stories is not None
 
-    def _create_download_link(self, data, filename, label):
-        """Creates a download link for the given data."""
-        b64 = base64.b64encode(data.encode()).decode()
-        href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">{label}</a>'
-        st.markdown(href, unsafe_allow_html=True)
 
     def _save_artifact(self, data, filename):
-        """Saves the artifact data to a file in a user-specified directory."""
+        """Saves the artifact data to a file, prompting the user for the download."""
         try:
-            # Get the current working directory as default
-            default_dir = os.getcwd()
-            
-            # Ask user for directory path
-            dir_path = st.text_input(
-                "Enter directory path to save the file:", 
-                value=default_dir,
-                help="Specify the directory where you want to save the file"
-            )
-            
-            # Create a button to save the file
-            if st.button("Save File"):
-                # Check if directory exists
-                if not os.path.exists(dir_path):
-                    st.warning(f"Directory does not exist: {dir_path}")
-                    create_dir = st.button("Create directory?")
-                    if create_dir:
-                        os.makedirs(dir_path)
-                    else:
-                        return
-                
-                # Create full filepath
-                filepath = os.path.join(dir_path, filename)
-                
-                # Save the file
-                with open(filepath, "w") as f:
-                    f.write(data)
-                
-                st.success(f"Artifact saved to {filepath}")
+            # Create a download link using streamlit
+            b64 = base64.b64encode(data.encode()).decode()
+            st.markdown(f'<a href="data:file/txt;base64,{b64}" download="{filename}">Download {filename}</a>', unsafe_allow_html=True)
+            st.success(f"Artifact download link created. Click to download {filename}")
+
         except Exception as e:
-            st.error(f"Error saving artifact: {e}")
+            st.error(f"Error creating download link: {e}")
