@@ -76,6 +76,68 @@ class SdlcNode:
 
                                 User Stories:
                                 """""
+                sys_prompt= f"""
+                               You are a Senior Software Analyst with expertise in Agile Software Development Life Cycle (SDLC) and user story creation. 
+                               Your task is to generate a separate and detailed user story for each individual requirement from the project details provided below.
+
+                                Project Details
+                                Project Name: {state.project_name}
+                                Requirements:
+                                {state.generated_requirements}
+
+                                User Story Generation Guidelines
+                                One Requirement = One User Story
+                                Create one user story for each requirement provided.
+
+                                Unique Identifier Format
+                                Assign each user story a unique identifier using the following convention:
+
+                                css
+                                Copy
+                                Edit
+                                [PROJECT_CODE]-US-[XXX]
+                                PROJECT_CODE: A short, uppercase abbreviation of the project name (e.g., “CRM” for Customer Relationship Management).
+
+                                US: Stands for User Story.
+
+                                XXX: A zero-padded sequential number starting from 001 (e.g., CRM-US-001, CRM-US-002, ...).
+
+                                User Story Structure Each user story must include:
+
+                                Title: A clear and concise summary of the functionality.
+
+                                Description (follow this exact format):
+
+                                css
+                                Copy
+                                Edit
+                                As a [user role], I want [goal or feature] so that [reason or benefit].
+                                Acceptance Criteria: A bulleted list of testable and verifiable conditions.
+
+                                Language & Terminology
+
+                                Use domain-specific terms to ensure clarity and accuracy.
+
+                                Ensure each user story is specific, testable, achievable, and aligned with Agile principles.
+
+                                {f"5. Incorporate Feedback\n - Additionally, consider the following while refining the user stories: {state.get_last_feedback_for_stage(SDLCStages.PLANNING)}" if state.get_last_feedback_for_stage(SDLCStages.PLANNING) else ""}
+                                Expected Output Format (for Each User Story)
+                                less
+                                Copy
+                                Edit
+                                Unique Identifier: [PROJECT_CODE]-US-XXX
+
+                                Title: [User Story Title]
+
+                                Description:
+                                As a [user role], I want [feature] so that [benefit].
+
+                                Acceptance Criteria:
+                                - [Criterion 1]
+                                - [Criterion 2]
+                                - [Criterion 3]
+                                - [Criterion 4]
+                                """
                 messages = [
                     SystemMessage(content="You are an expert at creating user stories for software development projects. Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].' Ensure the user stories are clear, concise, and cover the key functionalities outlined in the requirements."),
                     HumanMessage(content=prompt_string)
@@ -91,38 +153,58 @@ class SdlcNode:
             return {"user_stories": state.user_stories}
     
     @log_entry_exit
-    def process_feedback(self, state: State) -> dict:
-        """Process user feedback received for the current stage's output."""
-        logger.info(f"Processing user feedback for stage: {state.current_stage.value}")
+    def process_feedback(self, state: State) -> str:  # Return "accept" or "reject"
+        """Process user feedback and return a decision for graph routing."""
+        logger.info(f"Processing feedback for stage: {state.current_stage.value}")
 
-        # Assume feedback is available in Streamlit's session state when this node is triggered
-        feedback_text = st.session_state.get("user_feedback")
+        feedback_data = st.session_state.get("feedback", {})
+        decision = feedback_data.get("approved")
+        feedback_text = feedback_data.get("comments")
 
-        if feedback_text and feedback_text.strip(): # Check if feedback exists and is not just whitespace
-            logger.info(f"Feedback received: {feedback_text}")
-            # Add feedback to the state associated with the current stage
-            # The feedback is typically about the *output* of the previous stage,
-            # but we associate it with the *current* stage where it's processed.
-            # Or, one could argue it belongs to the stage *just completed*.
-            # Let's associate it with the stage that produced the artifact being reviewed.
-            # If this node is called *after* generating user stories (part of PLANNING),
-            # then the feedback is about the planning artifacts.
-            stage_for_feedback = SDLCStages.PLANNING # Assuming feedback after user stories review is about planning
+        if decision == True:
+            if "feedback" in st.session_state:
+                del st.session_state["feedback"]
+                logger.info("Feedback cleared from session state - Approved.")
+            return "accept"
+        elif decision == False and feedback_text:
+            stage_for_feedback = state.current_stage
             state.add_feedback(stage_for_feedback, feedback_text)
-            logger.info(f"Feedback added for stage: {stage_for_feedback.value}")
+            logger.info(f"Feedback added for stage: {stage_for_feedback.value} - Rejected.")
+            if "feedback" in st.session_state:
+                del st.session_state["feedback"]
+                logger.info("Feedback cleared from session state - Rejection processed.")
+            return "reject"
+        else:
+            return "accept"  
+    
+   
 
-            # Clear the feedback from session state after processing
-            if "user_feedback" in st.session_state:
-                del st.session_state["user_feedback"]
-                logger.info("Feedback cleared from session state.")
+
+        # if feedback_text and feedback_text.strip(): # Check if feedback exists and is not just whitespace
+        #     logger.info(f"Feedback received: {feedback_text}")
+        #     # Add feedback to the state associated with the current stage
+        #     # The feedback is typically about the *output* of the previous stage,
+        #     # but we associate it with the *current* stage where it's processed.
+        #     # Or, one could argue it belongs to the stage *just completed*.
+        #     # Let's associate it with the stage that produced the artifact being reviewed.
+        #     # If this node is called *after* generating user stories (part of PLANNING),
+        #     # then the feedback is about the planning artifacts.
+        #     stage_for_feedback = SDLCStages.PLANNING # Assuming feedback after user stories review is about planning
+        #     state.add_feedback(stage_for_feedback, feedback_text)
+        #     logger.info(f"Feedback added for stage: {stage_for_feedback.value}")
+
+        #     # Clear the feedback from session state after processing
+        #     if "user_feedback" in st.session_state:
+        #         del st.session_state["user_feedback"]
+        #         logger.info("Feedback cleared from session state.")
 
             # You might want to store the raw feedback text temporarily or trigger a revision process
             # state.raw_feedback = feedback_text # Example of storing raw feedback if needed
 
-            return {"feedback_processed": True, "status": "feedback_added"}
-        else:
-            logger.info("No new user feedback found in session state.")
-            return {"feedback_processed": False, "status": "no_feedback"}
+        #     return {"feedback_processed": True, "status": "feedback_added"}
+        # else:
+        #     logger.info("No new user feedback found in session state.")
+            # return {"feedback_processed": False, "status": "no_feedback"}
 
     # Add more nodes for Design, Development, Testing, Deployment etc. following a similar pattern
     # Each node would take the state, perform an action (potentially using LLM),
@@ -130,35 +212,15 @@ class SdlcNode:
 
     # Example placeholder for a Planning Review node (determines next step after planning)
     @log_entry_exit
-    def planning_review(self, state: State) -> str:
-        """Determines the next step after the planning stage."""
-        logger.info("Executing planning_review.")
-
-        # Check if feedback was provided in the previous step
-        feedback_given = st.session_state.get("feedback_submitted", False) # Assuming a flag is set in Streamlit
-
-        if feedback_given:
-             # Clear the feedback flag
-             if "feedback_submitted" in st.session_state:
-                 del st.session_state["feedback_submitted"]
-             # If feedback was given, we might want to revise planning or user stories
-             # This decision logic would go here. For simplicity, let's assume
-             # feedback means we go back to regeneration or processing the feedback more deeply.
-             # A more complex graph might have a dedicated feedback processing node.
-             logger.info("Feedback detected, potentially returning for revision or processing.")
-             # Return node names or conditional edges based on feedback content or presence
-             # Example: return "process_feedback_node" or "generate_requirements"
-             return "process_feedback" # Assuming the process_feedback node handles the revision logic
-
-        # If no feedback, proceed to the next stage
-        next_stage_enum = state.get_next_stage() # Get the next enum stage (e.g., SDLCStages.DESIGN)
-
-        if next_stage_enum and next_stage_enum != SDLCStages.COMPLETE:
-            next_stage_name = next_stage_enum.value # Get the string name (e.g., "design")
-            logger.info(f"No feedback detected. Proceeding to the next stage: {next_stage_name}")
-            # In LangGraph, return the name of the node to transition to
-            # Assuming you have nodes named "design", "development", etc.
-            return next_stage_name
+    def user_story_review_router(self, state: State) -> dict:
+        """Route to the appropriate review node based on the current stage."""
+        logger.info(f"Routing user story review for stage: {state.current_stage.value}")
+    
+        st.session_state.feedback.comments
+        feedback_text = st.session_state.get("feedback")
+        if feedback_text and feedback_text.strip():
+            logger.info(f"Feedback received: {feedback_text}")
+            return self.generate_user_stories(state)
         else:
-            logger.info("Planning complete, no further stages defined or project is complete.")
-            return "end" # Indicate completion of the workflow or section
+            logger.info("No new user feedback found in session state.")
+            return {"feedback_processed": False, "status": "no_feedback"}

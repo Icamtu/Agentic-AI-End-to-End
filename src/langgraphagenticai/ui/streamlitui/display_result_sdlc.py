@@ -34,6 +34,7 @@ class DisplaySdlcResult:
             "user_stories_generated": False,
             "generated_requirements": None,
             "generated_user_stories": None,
+            "feedback": None,
         }
         for key, value in defaults.items():
             if key not in st.session_state:
@@ -95,14 +96,27 @@ class DisplaySdlcResult:
             with st.expander("Generated Requirements"):
                 st.subheader("Generated Requirements")
                 st.markdown(st.session_state["generated_requirements"].content)
-                if st.button("Save Requirements", key="save_requirements_planning"):  # Unique key
+                if st.button("Save Requirements", key="save_requirements_planning"):  
                     self._save_artifact(st.session_state["generated_requirements"].content, "requirements.txt")
         if st.session_state.get("user_stories_generated"):
             with st.expander("Generated User Stories"):
                 st.subheader("Generated User Stories")
                 st.markdown(st.session_state["generated_user_stories"].content)
-                if st.button("Save User Stories", key="save_user_stories_planning"):  # Unique key
+                if st.button("Save User Stories", key="save_user_stories_planning"):  
                     self._save_artifact(st.session_state["generated_user_stories"].content, "user_stories.txt")
+            st.markdown("### feedback")
+            feedback = st.radio("Is the user story approved?", ("Yes", "No"))
+            if feedback == "Yes":
+                st.success("User story approved.")
+            else:
+                st.error("User story rejected.")
+                comments = st.text_area("Comments", placeholder="Enter your comments here...")
+                if st.button("Submit Feedback"):
+                    st.feedback = ReviewFeedback(approved=False, comments=comments)
+                    st.success(f"Feedback submitted: {st.feedback}")
+                    st.write(f"Comments: {st.feedback.comments}")
+                    # st.rerun()
+
         if not st.session_state.get("requirements_generated") and not st.session_state.get("user_stories_generated"):
             st.info("No artifacts generated yet in the Planning phase.")
         elif not st.session_state.get("requirements_generated"):

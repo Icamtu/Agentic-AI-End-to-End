@@ -37,15 +37,28 @@ class SdlcGraphBuilder:
             graph_builder.add_node("Requirement", sldc_node.user_input)
             graph_builder.add_node("GenerateRequirements", sldc_node.generate_requirements)
             graph_builder.add_node("GenerateUserStories", sldc_node.generate_user_stories)
+            
 
             # --- Correct the edges ---
             graph_builder.add_edge(START, "Requirement")
             graph_builder.add_edge("Requirement", "GenerateRequirements") 
             graph_builder.add_edge("GenerateRequirements", "GenerateUserStories") 
-            graph_builder.add_edge("GenerateUserStories", END)
+            
+
+          
+
+            graph_builder.add_conditional_edges(
+                                "GenerateUserStories", 
+                                sldc_node.process_feedback,
+                                
+                                {
+                                    "accept": END,
+                                    "reject": "Requirement"
+                                }            
+                            )
 
 
-            return graph_builder.compile(checkpointer=self.memory)
+            return graph_builder.compile(interrupt_after=["GenerateUserStories"],checkpointer=self.memory)
         except Exception as e:
             logger.error(f"Error building graph: {e}")
             raise

@@ -181,6 +181,13 @@ The objectives provide specific, measurable steps to achieve the goals within th
 
         self.feedback[stage_value].append(feedback_text)
         self.last_updated = datetime.now().isoformat()
+    
+    def get_last_feedback_for_stage(self, stage: SDLCStages) -> Optional[str]:
+        """Get the last feedback entry for a specific SDLC stage."""
+        stage_value = stage.value
+        if stage_value in self.feedback and self.feedback[stage_value]:
+            return self.feedback[stage_value][-1]
+        return None
 
     def get_next_stage(self) -> Optional[SDLCStages]:
         """
@@ -197,6 +204,8 @@ The objectives provide specific, measurable steps to achieve the goals within th
             return SDLCStages.COMPLETE  # Or None, depending on desired end behavior
         except ValueError:
             return SDLCStages.PLANNING
+    
+
 
     def get_all_artifacts(self) -> Dict[str, Optional[str]]:
         """
