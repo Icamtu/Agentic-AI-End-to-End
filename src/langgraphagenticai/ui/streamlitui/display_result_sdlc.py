@@ -115,7 +115,8 @@ class DisplaySdlcResult:
                     st.feedback = ReviewFeedback(approved=False, comments=comments)
                     st.success(f"Feedback submitted: {st.feedback}")
                     st.write(f"Comments: {st.feedback.comments}")
-                    # st.rerun()
+                    st.session_state["feedback"] = st.feedback.model_dump()
+                    st.rerun()
 
         if not st.session_state.get("requirements_generated") and not st.session_state.get("user_stories_generated"):
             st.info("No artifacts generated yet in the Planning phase.")

@@ -158,6 +158,10 @@ class SdlcNode:
         logger.info(f"Processing feedback for stage: {state.current_stage.value}")
 
         feedback_data = st.session_state.get("feedback", {})
+        logger.info(f"Feedback data: {feedback_data}")
+        if feedback_data is None:
+            logger.info("No feedback found in session state. Assuming acceptance.")
+            return "accept"
         decision = feedback_data.get("approved")
         feedback_text = feedback_data.get("comments")
 
@@ -211,16 +215,16 @@ class SdlcNode:
     # update the state with the generated artifact, and return a dict indicating the result.
 
     # Example placeholder for a Planning Review node (determines next step after planning)
-    @log_entry_exit
-    def user_story_review_router(self, state: State) -> dict:
-        """Route to the appropriate review node based on the current stage."""
-        logger.info(f"Routing user story review for stage: {state.current_stage.value}")
+    # @log_entry_exit
+    # def user_story_review_router(self, state: State) -> dict:
+    #     """Route to the appropriate review node based on the current stage."""
+    #     logger.info(f"Routing user story review for stage: {state.current_stage.value}")
     
-        st.session_state.feedback.comments
-        feedback_text = st.session_state.get("feedback")
-        if feedback_text and feedback_text.strip():
-            logger.info(f"Feedback received: {feedback_text}")
-            return self.generate_user_stories(state)
-        else:
-            logger.info("No new user feedback found in session state.")
-            return {"feedback_processed": False, "status": "no_feedback"}
+    #     st.session_state.feedback.comments
+    #     feedback_text = st.session_state.get("feedback")
+    #     if feedback_text and feedback_text.strip():
+    #         logger.info(f"Feedback received: {feedback_text}")
+    #         return self.generate_user_stories(state)
+    #     else:
+    #         logger.info("No new user feedback found in session state.")
+    #         return {"feedback_processed": False, "status": "no_feedback"}
