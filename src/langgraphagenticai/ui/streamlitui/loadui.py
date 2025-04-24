@@ -6,27 +6,10 @@ import json
 import requests # Needed for HTTP requests to QuickChart
 import os
 from dotenv import load_dotenv
-import logging # Import logging if you want to use the logger from Config
+from src.langgraphagenticai.logging.logging_utils import log_entry_exit,logger
+from src.langgraphagenticai.ui.uiconfigfile import Config
 
-# Assuming Config class is correctly defined in this file or imported
-# If it's defined elsewhere, ensure the path is correct for your project structure
-try:
-    # This assumes your Config class is in the specified path
-    from src.langgraphagenticai.ui.uiconfigfile import Config
-    logger = logging.getLogger(__name__) # Setup logger if using Config's logger style
-    logger.info("Successfully imported Config class.")
-except ImportError as e:
-    st.error(f"Failed to import Config class: {e}. Please ensure 'src/langgraphagenticai/ui/uiconfigfile.py' exists and defines the Config class.")
-    # Provide a dummy class to prevent immediate crash, but highlight the error
-    class Config:
-        def get_page_title(self): return "Error: Config Missing"
-        def get_llm_options(self): return []
-        def get_usecase_options(self): return []
-        def get_groq_model_options(self): return []
-        def get_google_model_options(self): return []
-        def get_openai_model_options(self): return []
-    logger = logging.getLogger(__name__)
-    logger.error("Using dummy Config class due to import error.")
+
 
 
 # --- Main Streamlit UI Class ---
@@ -35,11 +18,12 @@ class LoadStreamlitUI:
         """Initialize the Streamlit UI class."""
         self.config = Config() 
         self.user_controls = {}
-        load_dotenv() # Load environment variables
+        load_dotenv()
 
+    @log_entry_exit
     def initialize_session(self):
         """Initialize session state with default values."""
-        # (This function remains the same - initializes session state)
+        
         base_state = {
             "current_step": "requirements", 
             "requirements": "", 
@@ -51,9 +35,7 @@ class LoadStreamlitUI:
             "timeframe": "", 
             "IsFetchButtonClicked": False,
             "IsSDLC": False,
-            "GROQ_API_KEY": os.getenv("GROQ_API_KEY", ""),
             "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", ""),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", ""),
             "TAVILY_API_KEY": os.getenv("TAVILY_API_KEY", "")
         }
         if 'state' not in st.session_state:
@@ -64,7 +46,7 @@ class LoadStreamlitUI:
             if key not in st.session_state:
                 st.session_state[key] = value
         return st.session_state.state
-
+    @log_entry_exit
     def create_graph_diagram(self, usecase):
         """
         Create a graph diagram definition for the selected use case
@@ -193,19 +175,15 @@ class LoadStreamlitUI:
         except requests.exceptions.Timeout: st.error("Network timeout connecting to QuickChart."); return None
         except requests.exceptions.RequestException as e: st.error(f"Network error connecting to QuickChart: {e}"); return None
         except Exception as e: st.error(f"An unexpected error occurred during QuickChart rendering: {e}"); return None
-
+    @log_entry_exit
     def load_streamlit_ui(self):
         """Load and configure the Streamlit UI with user controls and graph diagram."""
         
         page_title = self.config.get_page_title()
 
-        
-        try:
-            # Try to get logo from Config class
-            logo = self.config.get_logo()
-        except AttributeError:
-            logo = "☁️" # Default cloud icon
-            logger.warning("Config class does not have a 'get_logo' method. Using default logo.")
+       
+        logo = "☁️" 
+            
             
    
         st.set_page_config(page_title=f"{page_title}", layout="wide")

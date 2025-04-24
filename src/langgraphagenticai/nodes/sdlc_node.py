@@ -21,6 +21,8 @@ class SdlcNode:
     def user_input(self, state: State) -> dict:
         """Handle user input, distinguishing between initial requirements and feedback."""
         logger.info(f"Executing user_input with state: {state}")
+        if state.get_last_feedback_for_stage(SDLCStages.PLANNING):
+            state.user_stories = None
 
         state.project_name = st.session_state.get("project_name")
         state.project_description = st.session_state.get("project_description")
@@ -52,7 +54,8 @@ class SdlcNode:
                             """""
             # Construct a list of messages for the LLM
             messages = [SystemMessage(content="You are an expert project requirements generator."),HumanMessage(content=prompt_string)]
-            state.generated_requirements = self.llm(messages)
+            response = self.llm.invoke(messages)
+            state.generated_requirements = response.content if hasattr(response, 'content') else str(response)  
             return {"generated_requirements": state.generated_requirements}
         except Exception as e:
             logger.error(f"Error generating requirements: {e}")
@@ -62,124 +65,126 @@ class SdlcNode:
    
     @log_entry_exit
     def generate_user_stories(self, state: State) -> dict:
-        """Generate user stories based on the requirements."""
+        """Generate user stories based on the requirements, incorporating feedback if available."""
         logger.info("Generating user stories")
-
-        try:
-            if state.generated_requirements:
-                prompt_string =  f"""Based on the following software requirements, generate a list of user stories.
-                                Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
-                                Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.
-
-                                Requirements:
-                                {state.generated_requirements}
-
-                                User Stories:
-                                """""
-                sys_prompt= f"""
-                               You are a Senior Software Analyst with expertise in Agile Software Development Life Cycle (SDLC) and user story creation. 
-                               Your task is to generate a separate and detailed user story for each individual requirement from the project details provided below.
-
-                                Project Details
-                                Project Name: {state.project_name}
-                                Requirements:
-                                {state.generated_requirements}
-
-                                User Story Generation Guidelines
-                                One Requirement = One User Story
-                                Create one user story for each requirement provided.
-
-                                Unique Identifier Format
-                                Assign each user story a unique identifier using the following convention:
-
-                                css
-                                Copy
-                                Edit
-                                [PROJECT_CODE]-US-[XXX]
-                                PROJECT_CODE: A short, uppercase abbreviation of the project name (e.g., “CRM” for Customer Relationship Management).
-
-                                US: Stands for User Story.
-
-                                XXX: A zero-padded sequential number starting from 001 (e.g., CRM-US-001, CRM-US-002, ...).
-
-                                User Story Structure Each user story must include:
-
-                                Title: A clear and concise summary of the functionality.
-
-                                Description (follow this exact format):
-
-                                css
-                                Copy
-                                Edit
-                                As a [user role], I want [goal or feature] so that [reason or benefit].
-                                Acceptance Criteria: A bulleted list of testable and verifiable conditions.
-
-                                Language & Terminology
-
-                                Use domain-specific terms to ensure clarity and accuracy.
-
-                                Ensure each user story is specific, testable, achievable, and aligned with Agile principles.
-
-                                {f"5. Incorporate Feedback\n - Additionally, consider the following while refining the user stories: {state.get_last_feedback_for_stage(SDLCStages.PLANNING)}" if state.get_last_feedback_for_stage(SDLCStages.PLANNING) else ""}
-                                Expected Output Format (for Each User Story)
-                                less
-                                Copy
-                                Edit
-                                Unique Identifier: [PROJECT_CODE]-US-XXX
-
-                                Title: [User Story Title]
-
-                                Description:
-                                As a [user role], I want [feature] so that [benefit].
-
-                                Acceptance Criteria:
-                                - [Criterion 1]
-                                - [Criterion 2]
-                                - [Criterion 3]
-                                - [Criterion 4]
-                                """
-                messages = [
-                    SystemMessage(content="You are an expert at creating user stories for software development projects. Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].' Ensure the user stories are clear, concise, and cover the key functionalities outlined in the requirements."),
-                    HumanMessage(content=prompt_string)
-                ]
-                state.user_stories = self.llm(messages)
-                return {"user_stories": state.user_stories}
-            else:
-                state.user_stories = "No requirements generated yet."
-                return {"user_stories": state.user_stories}
-        except Exception as e:
-            logger.error(f"Error generating user stories: {e}")
-            state.user_stories = f"Error generating user stories: {str(e)}"
+        if not state.generated_requirements:
+            state.user_stories = "No requirements generated yet."
+            logger.warning("Cannot generate user stories without requirements.")
             return {"user_stories": state.user_stories}
+        
+        feedback = state.get_last_feedback_for_stage(SDLCStages.PLANNING)
+        logger.info(f"Feedback for user stories: {feedback}")
+        if feedback:
+            prompt_string = f"""Based on the following software requirements AND feedback, generate a list of user stories.
+                            The previous version was rejected for the following reason: "{feedback}"
+                            Please make sure to address this feedback in your new user stories.
+                            
+                            Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
+                            Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.
+
+                            Requirements:
+                            {state.generated_requirements}
+                            
+                            Previous Feedback to Address:
+                            {feedback}
+
+                            User Stories:
+                            """""
+        else:
+
+            try:
+                if state.generated_requirements:
+                    prompt_string =  f"""Based on the following software requirements, generate a list of user stories.
+                                    Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
+                                    Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.
+
+                                    Requirements:
+                                    {state.generated_requirements}
+
+                                    User Stories:
+                                    """""
+                    sys_prompt= f"""
+                                    You are a Senior Software Analyst expert in Agile SDLC and user story creation. Your task is to generate detailed user stories based on the provided requirements.
+
+                                    Project Name: {state.project_name or 'N/A'}
+
+                                    Guidelines:
+
+                                    One Requirement = One User Story: Create a distinct user story for each functional requirement identified.
+                                    Unique Identifier: Assign each user story a unique ID: [PROJECT_CODE]-US-[XXX] (e.g., BN-US-001 for 'The Book Nook'). Use a short uppercase code for the project.
+                                    Structure (for each story):
+                                    Unique Identifier: [PROJECT_CODE]-US-XXX
+                                    Title: Clear summary of the functionality.
+                                    Description: As a [user role], I want [goal/feature] so that [reason/benefit].
+                                    Acceptance Criteria: Bulleted list of testable conditions (- [Criterion]).
+                                    Clarity: Use domain-specific terms. Ensure stories are specific, testable, achievable, and Agile-aligned. 
+                                    {f'5. Incorporate Feedback: The previous version was rejected. Address the following feedback while refining the user stories: "{feedback}"' if feedback else ''} """ 
+                    
+                    messages = [
+                        SystemMessage(content=sys_prompt),
+                        HumanMessage(content=prompt_string)
+                    ]
+                    response = self.llm.invoke(messages)
+                    state.user_stories = response.content if hasattr(response, 'content') else str(response)
+                    return {"user_stories": state.user_stories}
+                else:
+                    state.user_stories = "No requirements generated yet."
+                    return {"user_stories": state.user_stories}
+            except Exception as e:
+                logger.error(f"Error generating user stories: {e}")
+                state.user_stories = f"Error generating user stories: {str(e)}"
+                return {"user_stories": state.user_stories}
     
     @log_entry_exit
-    def process_feedback(self, state: State) -> str:  # Return "accept" or "reject"
-        """Process user feedback and return a decision for graph routing."""
-        logger.info(f"Processing feedback for stage: {state.current_stage.value}")
+    def process_feedback(self, state: State) -> dict: # Return a dictionary to update state
+        """Process user feedback from session state and update state with decision."""
+        # Ensure current_stage is valid before accessing .value
+        current_stage_value = "N/A"
+        if isinstance(state.get('current_stage'), SDLCStages):
+             current_stage_value = state['current_stage'].value
+        elif isinstance(state.get('current_stage'), str):
+             current_stage_value = state['current_stage'] # Handle if it's already a string
 
-        feedback_data = st.session_state.get("feedback", {})
-        logger.info(f"Feedback data: {feedback_data}")
+        logger.info(f"Processing feedback for stage: {current_stage_value}")
+
+        feedback_data = st.session_state.get("feedback") # Get the whole dict or None
+        logger.info(f"Feedback data from session state: {feedback_data}")
+
+        decision_result = "accept" # Default to accept
+
+        # --- Clear feedback from session state AFTER reading ---
+        if "feedback" in st.session_state:
+            try:
+                del st.session_state["feedback"]
+                logger.info("Feedback cleared from session state.")
+            except KeyError:
+                logger.warning("Attempted to delete 'feedback' from session state, but it was already gone.")
+
+        # --- Process the feedback data ---
         if feedback_data is None:
-            logger.info("No feedback found in session state. Assuming acceptance.")
-            return "accept"
-        decision = feedback_data.get("approved")
-        feedback_text = feedback_data.get("comments")
-
-        if decision == True:
-            if "feedback" in st.session_state:
-                del st.session_state["feedback"]
-                logger.info("Feedback cleared from session state - Approved.")
-            return "accept"
-        elif decision == False and feedback_text:
-            stage_for_feedback = state.current_stage
-            state.add_feedback(stage_for_feedback, feedback_text)
-            logger.info(f"Feedback added for stage: {stage_for_feedback.value} - Rejected.")
-            if "feedback" in st.session_state:
-                del st.session_state["feedback"]
-                logger.info("Feedback cleared from session state - Rejection processed.")
-            return "reject"
+            logger.info("No feedback data found. Assuming acceptance.")
+            decision_result = "accept"
         else:
-            return "accept"  
+            decision = feedback_data.get("approved")
+            feedback_text = feedback_data.get("comments")
+            logger.info(f"Decision from feedback: {decision}, Comments: {feedback_text}")
+
+            if decision is True:
+                logger.info("Feedback decision: Approved.")
+                decision_result = "accept"
+            elif decision is False and feedback_text:
+                # Add feedback to the graph state
+                stage_for_feedback = SDLCStages.PLANNING # Assuming feedback is for planning
+                state.add_feedback(stage_for_feedback, feedback_text)
+                logger.info(f"Feedback added to graph state for stage: {stage_for_feedback.value} - Rejected.")
+                decision_result = "reject"
+            else:
+                # Handle cases like Reject without comments, or unexpected data
+                logger.warning("Feedback decision was 'Reject' but no comments provided, or data invalid. Defaulting to accept.")
+                decision_result = "accept"
+
+        # Return the decision within the state update dictionary
+        return {"feedback_decision": decision_result} 
     
    
 
