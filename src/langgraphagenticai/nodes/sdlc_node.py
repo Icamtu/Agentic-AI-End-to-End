@@ -136,33 +136,25 @@ class SdlcNode:
                 return {"user_stories": state.user_stories}
     
     @log_entry_exit
-    def process_feedback(self, state: State) -> dict: # Return a dictionary to update state
-        """Process user feedback from session state and update state with decision."""
-        # Ensure current_stage is valid before accessing .value
+    def process_feedback(self, state: State) -> dict:
+        """Process user feedback passed via state and update state with decision."""
         current_stage_value = "N/A"
-        if isinstance(state.get('current_stage'), SDLCStages):
-             current_stage_value = state['current_stage'].value
-        elif isinstance(state.get('current_stage'), str):
-             current_stage_value = state['current_stage'] # Handle if it's already a string
+        current_stage_obj = state.get('current_stage')
+        if isinstance(current_stage_obj, SDLCStages):
+            current_stage_value = current_stage_obj.value
+        elif isinstance(current_stage_obj, str):
+            current_stage_value = current_stage_obj
 
         logger.info(f"Processing feedback for stage: {current_stage_value}")
 
-        feedback_data = st.session_state.get("feedback") # Get the whole dict or None
-        logger.info(f"Feedback data from session state: {feedback_data}")
+        # Read feedback from the graph state
+        feedback_data = state.get("feedback_input")
+        logger.info(f"Feedback data received in process_feedback: {feedback_data}")
 
-        decision_result = "accept" # Default to accept
+        decision_result = "accept"
 
-        # --- Clear feedback from session state AFTER reading ---
-        if "feedback" in st.session_state:
-            try:
-                del st.session_state["feedback"]
-                logger.info("Feedback cleared from session state.")
-            except KeyError:
-                logger.warning("Attempted to delete 'feedback' from session state, but it was already gone.")
-
-        # --- Process the feedback data ---
         if feedback_data is None:
-            logger.info("No feedback data found. Assuming acceptance.")
+            logger.info("No feedback data found in graph state. Assuming acceptance.")
             decision_result = "accept"
         else:
             decision = feedback_data.get("approved")
@@ -173,63 +165,22 @@ class SdlcNode:
                 logger.info("Feedback decision: Approved.")
                 decision_result = "accept"
             elif decision is False and feedback_text:
-                # Add feedback to the graph state
-                stage_for_feedback = SDLCStages.PLANNING # Assuming feedback is for planning
-                state.add_feedback(stage_for_feedback, feedback_text)
+                stage_for_feedback = SDLCStages.PLANNING
+                if isinstance(state, State) and hasattr(state, 'add_feedback'):
+                    state.add_feedback(stage_for_feedback, feedback_text)
+                elif isinstance(state, dict):
+                    if 'feedback' not in state:
+                        state['feedback'] = {}
+                    if stage_for_feedback.value not in state['feedback']:
+                        state['feedback'][stage_for_feedback.value] = []
+                    state['feedback'][stage_for_feedback.value].append(feedback_text)
+                else:
+                    logger.error("State object does not have 'add_feedback' method and is not a dict.")
+
                 logger.info(f"Feedback added to graph state for stage: {stage_for_feedback.value} - Rejected.")
                 decision_result = "reject"
             else:
-                # Handle cases like Reject without comments, or unexpected data
                 logger.warning("Feedback decision was 'Reject' but no comments provided, or data invalid. Defaulting to accept.")
                 decision_result = "accept"
 
-        # Return the decision within the state update dictionary
-        return {"feedback_decision": decision_result} 
-    
-   
-
-
-        # if feedback_text and feedback_text.strip(): # Check if feedback exists and is not just whitespace
-        #     logger.info(f"Feedback received: {feedback_text}")
-        #     # Add feedback to the state associated with the current stage
-        #     # The feedback is typically about the *output* of the previous stage,
-        #     # but we associate it with the *current* stage where it's processed.
-        #     # Or, one could argue it belongs to the stage *just completed*.
-        #     # Let's associate it with the stage that produced the artifact being reviewed.
-        #     # If this node is called *after* generating user stories (part of PLANNING),
-        #     # then the feedback is about the planning artifacts.
-        #     stage_for_feedback = SDLCStages.PLANNING # Assuming feedback after user stories review is about planning
-        #     state.add_feedback(stage_for_feedback, feedback_text)
-        #     logger.info(f"Feedback added for stage: {stage_for_feedback.value}")
-
-        #     # Clear the feedback from session state after processing
-        #     if "user_feedback" in st.session_state:
-        #         del st.session_state["user_feedback"]
-        #         logger.info("Feedback cleared from session state.")
-
-            # You might want to store the raw feedback text temporarily or trigger a revision process
-            # state.raw_feedback = feedback_text # Example of storing raw feedback if needed
-
-        #     return {"feedback_processed": True, "status": "feedback_added"}
-        # else:
-        #     logger.info("No new user feedback found in session state.")
-            # return {"feedback_processed": False, "status": "no_feedback"}
-
-    # Add more nodes for Design, Development, Testing, Deployment etc. following a similar pattern
-    # Each node would take the state, perform an action (potentially using LLM),
-    # update the state with the generated artifact, and return a dict indicating the result.
-
-    # Example placeholder for a Planning Review node (determines next step after planning)
-    # @log_entry_exit
-    # def user_story_review_router(self, state: State) -> dict:
-    #     """Route to the appropriate review node based on the current stage."""
-    #     logger.info(f"Routing user story review for stage: {state.current_stage.value}")
-    
-    #     st.session_state.feedback.comments
-    #     feedback_text = st.session_state.get("feedback")
-    #     if feedback_text and feedback_text.strip():
-    #         logger.info(f"Feedback received: {feedback_text}")
-    #         return self.generate_user_stories(state)
-    #     else:
-    #         logger.info("No new user feedback found in session state.")
-    #         return {"feedback_processed": False, "status": "no_feedback"}
+        return {"feedback_decision": decision_result}

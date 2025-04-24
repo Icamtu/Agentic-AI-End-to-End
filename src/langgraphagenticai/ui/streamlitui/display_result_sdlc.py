@@ -152,7 +152,7 @@ class DisplaySdlcResult:
                     comments = st.text_area(
                         "Comments (Required for Rejection):",
                         value="Include Subscriptions model to retain customer", # Example default
-                        placeholder="Explain why the user stories need revision...",
+                        placeholder="Include Subscriptions model to retain customer",
                         key="user_story_feedback_comments"
                     )
 
@@ -235,12 +235,28 @@ class DisplaySdlcResult:
     @log_entry_exit
     def _collect_project_requirements(self):
         """Displays the form to collect initial project details."""
-        # Default values (kept for brevity)
+        
         DefaultProjectName = "The Book Nook"
-        DefaultDescription = "..." # Truncated
-        DefaultGoals = "..." # Truncated
-        DefaultScope = "..." # Truncated
-        DefaultObjectives = "..." # Truncated
+        DefaultDescription = """Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, 
+                                to allow customers to browse their inventory, place orders online, and learn about upcoming events."""
+        DefaultGoals = """ Increase sales and revenue for The Book Nook.
+                            Enhance customer engagement and loyalty.
+                            Modernize The Book Nook's presence and reach a wider audience in Bangalore. """
+        DefaultScope = """ Inclusions:
+                                Developing a mobile application compatible with Android and iOS.
+                                Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
+                                Integration with the bookstore's existing inventory management system.
+                                Basic user support documentation.
+                            Exclusions:
+                                Developing a separate tablet application.
+                                Implementing a loyalty points program (will be considered in a future phase).
+                                Integrating with social media platforms for direct purchasing.
+                                Providing real-time inventory updates beyond a daily sync.
+                                Developing advanced analytics dashboards for the bookstore owner in this phase."""
+        DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
+                            Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
+                            Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
+                            Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
 
         st.subheader("Define Project Details")
         with st.form("sdlc_requirements_form"):
@@ -284,16 +300,12 @@ class DisplaySdlcResult:
             try:
                 for event in self.graph.stream(input_data, self.config):
                     logger.info(f"Initial Run Event: {event}")
-                    event_key = list(event.keys())[0] # Get the node name or signal
+                    event_key = list(event.keys())[0] 
 
-                    # Explicitly check for interrupt signal
+                    
                     if event_key == "__interrupt__":
                          logger.info("Graph interrupted as expected after generating artifacts.")
-                         # No 'break' needed, stream stops automatically
-                         # Capture the state *just before* the interrupt
-                         # Note: LangGraph checkpointer handles the actual state saving
-                         # We just need the artifacts for the UI
-                         last_node_state = event.get("__interrupt__") # The state *at* interrupt
+                         last_node_state = event.get("__interrupt__") 
                          if last_node_state:
                              requirements = last_node_state.get("generated_requirements", requirements)
                              user_stories = last_node_state.get("generated_user_stories", user_stories)
@@ -314,7 +326,7 @@ class DisplaySdlcResult:
                  st.error(f"An error occurred during graph execution: {e}")
                  return # Stop processing if stream fails
 
-        # Update session state after the initial run (which was interrupted)
+       
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
         st.session_state["requirements_generated"] = requirements is not None
@@ -326,24 +338,41 @@ class DisplaySdlcResult:
     def _resume_sdlc_graph(self):
         """Resumes the graph execution from the checkpoint after feedback."""
         logger.info("Resuming SDLC graph execution...")
-        # Input is {} instead of None, as process_feedback reads from st.session_state
 
-        # --- Add detailed logging before the stream call ---
-        logger.info(f"Attempting resume with config: {self.config}")
-        try:
-            # Assuming self.memory is the MemorySaver instance used in the graph
-            if hasattr(self, 'graph') and hasattr(self.graph, 'checkpointer') and hasattr(self.graph.checkpointer, 'storage'):
-                 thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
-                 checkpoint_exists = thread_id in self.graph.checkpointer.storage
-                 logger.info(f"Checkpointer storage keys: {list(self.graph.checkpointer.storage.keys())}")
-                 logger.info(f"Checkpoint for current thread_id ({thread_id}) exists: {checkpoint_exists}")
-                 if checkpoint_exists:
-                     pass
-            else:
-                 logger.warning("Could not access checkpointer storage for inspection.")
-        except Exception as log_err:
-            logger.warning(f"Could not inspect checkpointer storage: {log_err}")
-        # --- End detailed logging ---
+        # Read feedback from session state
+        feedback_data = st.session_state.get("feedback")
+        logger.info(f"Feedback data read from session state: {feedback_data}")
+
+        # Clear feedback from session state BEFORE calling stream
+        if "feedback" in st.session_state:
+            try:
+                del st.session_state["feedback"]
+                logger.info("Feedback cleared from session state before resuming graph.")
+            except KeyError:
+                logger.warning("Attempted to delete 'feedback' from session state, but it was already gone.")
+
+        # Prepare input data for the resume call
+        resume_input_data = {}
+        if feedback_data:
+            resume_input_data["feedback_input"] = feedback_data
+        else:
+            logger.warning("Resume triggered, but no feedback data found. Using empty input.")
+
+        # Log checkpoint state for debugging
+        thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
+        checkpoint = None
+        if hasattr(self.graph, 'checkpointer'):
+            try:
+                checkpoint_tuple = self.graph.checkpointer.get_tuple({"configurable": {"thread_id": thread_id}})
+                if checkpoint_tuple:
+                    checkpoint = checkpoint_tuple.checkpoint
+                    logger.info(f"Checkpoint retrieved: {checkpoint}")
+                    next_node = checkpoint.get("next_node", "Unknown")
+                    logger.info(f"Next node from checkpoint: {next_node}")
+                else:
+                    logger.warning("No checkpoint found for thread_id: %s", thread_id)
+            except Exception as e:
+                logger.error(f"Failed to retrieve checkpoint: {e}", exc_info=True)
 
         requirements = st.session_state.get("generated_requirements")
         user_stories = st.session_state.get("generated_user_stories")
@@ -351,27 +380,32 @@ class DisplaySdlcResult:
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
-                # --- MODIFICATION: Pass {} instead of None ---
-                for event in self.graph.stream({}, self.config): # Pass {} as input to resume
-                # --- END MODIFICATION ---
-
-                    # If this loop runs, the logs below will appear
+                # Stream without subgraphs=True
+                for event in self.graph.stream(resume_input_data, self.config):
                     logger.info(f"Resume Event: {event}")
-                    event_key = list(event.keys())[0] # Get node name or signal
+                    # Handle tuple events if they occur
+                    if isinstance(event, tuple):
+                        logger.info(f"Received tuple event: {event}")
+                        # Expect (subgraph_id, node_events)
+                        _, node_events = event
+                    else:
+                        node_events = event
 
-                    # Check if the graph reached the end after resuming
+                    event_key = list(node_events.keys())[0]
+
                     if event_key == END:
-                         logger.info("Graph reached END after resuming.")
-                         graph_completed_flag = True
-                         final_state = event.get(END)
-                         if final_state:
-                             requirements = final_state.get("generated_requirements", requirements)
-                             user_stories = final_state.get("generated_user_stories", user_stories)
-                         break
+                        logger.info("Graph reached END after resuming.")
+                        graph_completed_flag = True
+                        final_state = node_events.get(END)
+                        if final_state:
+                            requirements = final_state.get("generated_requirements", requirements)
+                            user_stories = final_state.get("generated_user_stories", user_stories)
+                        break
 
                     # Process node updates during resume
-                    for node, state in event.items():
-                        if state is None: continue
+                    for node, state in node_events.items():
+                        if state is None:
+                            continue
                         logger.info(f"Node '{node}' updated state during resume.")
                         if "generated_requirements" in state:
                             requirements = state["generated_requirements"]
@@ -381,11 +415,11 @@ class DisplaySdlcResult:
                             logger.info("User stories potentially updated during resume.")
 
             except Exception as e:
-                 logger.error(f"Error during graph resume stream: {e}", exc_info=True)
-                 st.error(f"An error occurred during graph resumption: {e}")
-                 return
+                logger.error(f"Error during graph resume stream: {e}", exc_info=True)
+                st.error(f"An error occurred during graph resumption: {e}")
+                return
 
-        # --- Update session state after resume processing ---
+        # Update session state after resume processing
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
         st.session_state["requirements_generated"] = requirements is not None
@@ -393,6 +427,10 @@ class DisplaySdlcResult:
         st.session_state["graph_completed"] = graph_completed_flag
 
         logger.info("Graph resumption processing finished.")
+
+
+
+
 
 
     @log_entry_exit
