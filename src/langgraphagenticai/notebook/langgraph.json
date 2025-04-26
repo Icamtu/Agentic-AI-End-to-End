@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "sdlc_agent": "./sdlc.py:agent"
+  },
+  "env": "../../.env"
+}
