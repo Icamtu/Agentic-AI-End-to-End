@@ -41,10 +41,10 @@ class SdlcGraphBuilder:
             # Conditional edge after feedback processing
             graph_builder.add_conditional_edges(
                 "ProcessFeedback",
-                lambda state: state.get("feedback_decision", "accept"),
+                sldc_node.feedbackRoute,
                 {
                     "accept": END,
-                    "reject": "Requirement"
+                    "reject": "GenerateUserStories"
                 }
             )
 

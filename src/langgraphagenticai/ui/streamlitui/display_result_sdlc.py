@@ -116,7 +116,11 @@ class DisplaySdlcResult:
         """Displays generated planning artifacts and the feedback form."""
         st.subheader("Planning Artifacts")
         requirements_exist = st.session_state.get("requirements_generated")
-        stories_exist = st.session_state.get("user_stories_generated") # This flag indicates readiness for review/approval
+        stories_exist = st.session_state.get("user_stories_generated")  # This flag indicates readiness for review/approval
+
+        # Ensure feedback is initialized as a dictionary
+        if "feedback" not in st.session_state or st.session_state["feedback"] is None:
+            st.session_state["feedback"] = {}
 
         # Display Requirements if they exist
         if requirements_exist:
@@ -125,7 +129,7 @@ class DisplaySdlcResult:
                 if st.button("Save Requirements", key="save_requirements_planning"):
                     self._save_artifact(st.session_state["generated_requirements"], "requirements.txt")
         else:
-             st.info("Requirements will be displayed here after generation.")
+            st.info("Requirements will be displayed here after generation.")
 
         # Display User Stories and Feedback Form ONLY if stories are generated and ready for review
         if stories_exist:
@@ -135,7 +139,6 @@ class DisplaySdlcResult:
                     self._save_artifact(st.session_state["generated_user_stories"], "user_stories.txt")
 
             # --- Feedback Section ---
-            # Only show feedback if the graph isn't completed yet
             if not st.session_state.get("graph_completed"):
                 st.markdown("### Feedback on User Stories")
                 decision_options = ("Approve", "Reject")
@@ -144,50 +147,53 @@ class DisplaySdlcResult:
                     decision_options,
                     key="user_story_feedback_decision",
                     horizontal=True,
-                    index=0 # Default to Approve
+                    index=0  # Default to Approve
                 )
 
-                comments = ""
-                if selected_decision == "Reject":
-                    comments = st.text_area(
-                        "Comments (Required for Rejection):",
-                        value="Include Subscriptions model to retain customer", # Example default
-                        placeholder="Include Subscriptions model to retain customer",
-                        key="user_story_feedback_comments"
-                    )
+                comments = st.text_area(
+                    "Comments (Required for Rejection):",
+                    # value="Include Subscriptions model to retain customer",  # Example default
+                    placeholder="Include Subscriptions model to retain customer",
+                    key="user_story_feedback_comments"
+                )
 
                 if st.button("Submit Review", key="submit_review_button"):
-                    is_approved = (selected_decision == "Approve")
-                    if not is_approved and not comments.strip():
+                    if selected_decision == "Reject" and not comments.strip():
                         st.error("Comments are required when rejecting.")
                     else:
-                        feedback_obj = ReviewFeedback(approved=is_approved, comments=comments if not is_approved else "")
-                        logger.info("Feedback submitted: %s", feedback_obj)
-                        st.success(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        is_approved = (selected_decision == "Approve")
+                        logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
 
-                        # Store feedback dict for the process_feedback node
-                        st.session_state["feedback"] = feedback_obj.model_dump()
+                        # Structure feedback to match SDLCState format
+                        current_stage = "planning"  # Assuming feedback is always on Planning in this example
+                        new_feedback = {
+                            current_stage: [comments] if not is_approved else []  # Only store comments if rejected
+                        }
+
+                        # Update session state with the new feedback structure
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+
+                        if not is_approved:
+                            st.session_state["feedback"][current_stage].append(comments)
+
                         logger.info("Session state updated with feedback: %s", st.session_state["feedback"])
 
                         # --- Signal that the graph needs to resume ---
                         st.session_state["needs_resume_after_feedback"] = True
 
                         # If rejected, immediately hide the stories from the UI until regenerated
-                        # The resume logic will handle updating the actual artifacts
                         if not is_approved:
                             st.session_state["user_stories_generated"] = False
 
                         logger.info("Feedback stored. Triggering rerun for graph resumption.")
-                        st.rerun() # Rerun to trigger the resume logic in handle_sdlc_workflow
+                        st.rerun()
             else:
-                st.success("User stories approved.") # Show if graph is completed
-
-        # Indicate waiting state if requirements exist but stories don't (yet)
+                st.success("User stories approved.")  # Show if graph is completed
         elif requirements_exist and not stories_exist:
             st.info("User stories will be displayed here after generation or if awaiting regeneration after feedback.")
-        # Initial state message
         elif not requirements_exist and not stories_exist:
-             st.info("No artifacts generated yet in the Planning phase.")
+            st.info("No artifacts generated yet in the Planning phase.")
 
 
     # --- Placeholder Display Functions for Other Phases ---
@@ -334,6 +340,7 @@ class DisplaySdlcResult:
         logger.info("Initial graph run finished (interrupted). Artifacts stored in session state.")
 
 
+    
     @log_entry_exit
     def _resume_sdlc_graph(self):
         """Resumes the graph execution from the checkpoint after feedback."""
@@ -354,7 +361,7 @@ class DisplaySdlcResult:
         # Prepare input data for the resume call
         resume_input_data = {}
         if feedback_data:
-            resume_input_data["feedback_input"] = feedback_data
+            resume_input_data["feedback"] = feedback_data
         else:
             logger.warning("Resume triggered, but no feedback data found. Using empty input.")
 
@@ -380,40 +387,35 @@ class DisplaySdlcResult:
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
-                # Stream without subgraphs=True
-                for event in self.graph.stream(resume_input_data, self.config):
-                    logger.info(f"Resume Event: {event}")
-                    # Handle tuple events if they occur
-                    if isinstance(event, tuple):
-                        logger.info(f"Received tuple event: {event}")
-                        # Expect (subgraph_id, node_events)
-                        _, node_events = event
-                    else:
-                        node_events = event
-
-                    event_key = list(node_events.keys())[0]
-
-                    if event_key == END:
-                        logger.info("Graph reached END after resuming.")
-                        graph_completed_flag = True
-                        final_state = node_events.get(END)
-                        if final_state:
-                            requirements = final_state.get("generated_requirements", requirements)
-                            user_stories = final_state.get("generated_user_stories", user_stories)
-                        break
-
-                    # Process node updates during resume
-                    for node, state in node_events.items():
-                        if state is None:
-                            continue
-                        logger.info(f"Node '{node}' updated state during resume.")
-                        if "generated_requirements" in state:
-                            requirements = state["generated_requirements"]
-                            logger.info("Requirements potentially updated during resume.")
-                        if "user_stories" in state:
-                            user_stories = state["user_stories"]
-                            logger.info("User stories potentially updated during resume.")
-
+                # Prefer resume if available
+                if hasattr(self.graph, "resume") and checkpoint:
+                    logger.info("Resuming graph from checkpoint using .resume()")
+                    for event in self.graph.resume(checkpoint, resume_input_data, self.config):
+                        logger.info(f"Resume Event: {event}")
+                        # Process node updates
+                        for node, state in event.items():
+                            if state is None: continue
+                            logger.info(f"Node '{node}' updated state during resume.")
+                            if "generated_requirements" in state:
+                                requirements = state["generated_requirements"]
+                            if "user_stories" in state:
+                                user_stories = state["user_stories"]
+                            if node == END or node == "END":
+                                graph_completed_flag = True
+                else:
+                    # Fallback to stream
+                    for event in self.graph.stream(resume_input_data, self.config):
+                        logger.info(f"Resume Event: {event}")
+                        # Process node updates
+                        for node, state in event.items():
+                            if state is None: continue
+                            logger.info(f"Node '{node}' updated state during resume.")
+                            if "generated_requirements" in state:
+                                requirements = state["generated_requirements"]
+                            if "user_stories" in state:
+                                user_stories = state["user_stories"]
+                            if node == END or node == "END":
+                                graph_completed_flag = True
             except Exception as e:
                 logger.error(f"Error during graph resume stream: {e}", exc_info=True)
                 st.error(f"An error occurred during graph resumption: {e}")
