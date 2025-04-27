@@ -41,7 +41,7 @@ class SdlcGraphBuilder:
             # Conditional edge after feedback processing
             graph_builder.add_conditional_edges(
                 "ProcessFeedback",
-                sldc_node.feedbackRoute,
+                sldc_node.feedback_route,
                 {
                     "accept": END,
                     "reject": "GenerateUserStories"

@@ -82,38 +82,7 @@ class SDLCState(BaseModel):
         Level of Detail: Specific, quantifiable, and time-bound.
         Example Project: Developing a Mobile Application for a Local Bookstore
 
-Project Description: Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, to allow customers to browse their inventory, place orders online, and learn about upcoming events.
-
-Project Goals:
-
-        Increase sales and revenue for The Book Nook.
-        Enhance customer engagement and loyalty.
-        Modernize The Book Nook's presence and reach a wider audience in Bangalore.
-Project Scope:
-
-Inclusions:
-    Developing a mobile application compatible with Android and iOS.
-    Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
-    Integration with the bookstore's existing inventory management system.
-    Basic user support documentation.
-Exclusions:
-    Developing a separate tablet application.
-    Implementing a loyalty points program (will be considered in a future phase).
-    Integrating with social media platforms for direct purchasing.
-    Providing real-time inventory updates beyond a daily sync.
-    Developing advanced analytics dashboards for the bookstore owner in this phase.
-Project Objectives (SMART):
-
-    Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
-    Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
-    Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
-    Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound).
-    In Summary:
-
-The description gives a general idea of the project.
-The goals state the desired high-level outcomes.
-The scope defines the boundaries of the work to be done.
-The objectives provide specific, measurable steps to achieve the goals within the defined scope.   
+ 
 """
 
     # core state attributes 
@@ -140,6 +109,7 @@ The objectives provide specific, measurable steps to achieve the goals within th
 
     # Feedback
     feedback: Dict[str, List[str]] = Field(default_factory=dict, description="User feedback by stage")
+    feedback_decision: Optional[str] = Field(None, description="Decision after processing feedback (accept/reject)")
 
     # Metadata
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Creation timestamp")
@@ -167,6 +137,7 @@ The objectives provide specific, measurable steps to achieve the goals within th
         # Update stage
         self.current_stage = new_stage
         self.last_updated = datetime.now().isoformat()
+        
     def add_feedback(self, stage: SDLCStages, feedback_text: str):
         """
         Add feedback for a specific stage.

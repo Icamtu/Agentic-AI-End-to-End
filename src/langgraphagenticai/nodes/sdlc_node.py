@@ -137,65 +137,76 @@ class SdlcNode:
     
     @log_entry_exit
     def process_feedback(self, state: State) -> dict:
-        """Process user feedback by adding it to the state."""
-        current_stage_value = state.current_stage.value if isinstance(state.current_stage, SDLCStages) else state.current_stage
-        logger.debug(f"Processing feedback for stage: {current_stage_value}")
+            """
+            Process user feedback passed via state and update state with decision.
+            Only { "current_stage": ["accept"] } ends the process.
+            """
+            logger.debug(f"--- Entering process_feedback ---")
+            logger.debug(f"Input state: {state.to_dict() if isinstance(state, State) else state}")
 
-        raw_feedback = state.feedback
-        logger.debug(f"Raw feedback data: {raw_feedback}")
+            # Normalize current_stage to enum
+            if isinstance(state.current_stage, str):
+                try:
+                    current_stage_enum = SDLCStages(state.current_stage)
+                except ValueError:
+                    logger.warning(f"Unknown current_stage string: {state.current_stage}")
+                    current_stage_enum = None
+            else:
+                current_stage_enum = state.current_stage
 
-        # Only accept if feedback is {current_stage: ["accept"]}
-        if (
-            isinstance(raw_feedback, dict)
-            and current_stage_value in raw_feedback
-            and isinstance(raw_feedback[current_stage_value], list)
-            and raw_feedback[current_stage_value]
-            and raw_feedback[current_stage_value][-1].strip().lower() == "accept"
-        ):
-            state.feedback_decision = "accept"
-            return {
-                "feedback_decision": "accept",
-                "feedback": state.feedback
+            current_stage_value = current_stage_enum.value if current_stage_enum else state.current_stage
+
+            logger.debug(f"Processing feedback for stage: {current_stage_value}")
+
+            raw_feedback = state.feedback
+            logger.debug(f"Raw feedback data received in state: {raw_feedback}")
+
+            # Only accept if feedback is {current_stage: ["accept"]}
+            logger.debug(f"Checking acceptance: current_stage_value={current_stage_value}, raw_feedback={raw_feedback}")
+            if (
+                isinstance(raw_feedback, dict)
+                and current_stage_value in raw_feedback
+                and isinstance(raw_feedback[current_stage_value], list)
+                and raw_feedback[current_stage_value] # Check if list is not empty
+                and raw_feedback[current_stage_value][-1].strip().lower() == "accept"
+            ):
+                logger.info(f"Feedback for stage '{current_stage_value}' is ACCEPT. Ending flow.")
+                state.feedback_decision = "accept"
+            else:
+                logger.info(f"Feedback for stage '{current_stage_value}' is not accept. Looping back.")
+                state.feedback_decision = "reject"
+
+            return_value = {
+                "feedback_decision": state.feedback_decision,
+                "feedback": state.feedback # Pass the original feedback dict back
             }
-        else:
-            state.feedback_decision = "reject"
-            return {
-                "feedback_decision": "reject",
-                "feedback": state.feedback
-            }
-
+            logger.debug(f"Returning from process_feedback: {return_value}")
+            logger.debug(f"--- Exiting process_feedback ---")
+            return return_value
     @log_entry_exit
-    def feedbackRoute(self, state: State) -> str:
-        """Route feedback based on SDLCState feedback format (Dict[str, List[str]]).
-        Accept if feedback for current stage is empty or not present, reject if there are comments.
-        """
-        logger.debug(f"Routing feedback with state type: {type(state)}")
-        logger.debug(f"State content: {state}")
+    def feedback_route(self, state: State) -> str:
+        """Routes based on the feedback decision stored in the state."""
+        logger.debug(f"--- Entering feedback_route ---")
+        logger.debug(f"Routing feedback. Current state includes feedback_decision: {hasattr(state, 'feedback_decision')}")
         
-        feedback_decision = None
-        
-        # If state is a dict with feedback_decision
-        if isinstance(state, dict) and "feedback_decision" in state:
-            feedback_decision = state["feedback_decision"]
-            logger.debug(f"Found feedback_decision in state dict: {feedback_decision}")
-        # If state is a SDLCState object
-        elif isinstance(state, state.SDLCState):
-            logger.debug(f"State is SDLCState object")
-            if hasattr(state, "feedback_decision"):
-                feedback_decision = state.feedback_decision
-                logger.debug(f"Found feedback_decision as attribute: {feedback_decision}")
-        # Try to get from node output
+        logger.debug(f"Full state content received by feedback_route: {state.to_dict() if isinstance(state, SDLCState) else state}")
+
+        if not isinstance(state, State):
+            logger.error(f"Incorrect state type passed to feedback_route: {type(state)}. Defaulting to reject.")
+            logger.debug(f"--- Exiting feedback_route (routing: reject due to type error) ---")
+            
+            return "reject"
+
+    
+        feedback_decision = state.feedback_decision
+        logger.debug(f"Feedback decision read from state object: {feedback_decision}")
+
+        if feedback_decision == "accept":
+            logger.info("Feedback accepted. Routing to END.")
+            logger.debug(f"--- Exiting feedback_route (routing: accept) ---")
+            return "accept"
         else:
-            logger.debug(f"State is neither dict nor SDLCState, trying alternative methods")
-            try:
-                if hasattr(state, "get"):
-                    node_output = state.get("ProcessFeedback", {})
-                    logger.debug(f"ProcessFeedback node output: {node_output}")
-                    feedback_decision = node_output.get("feedback_decision")
-                    logger.debug(f"Found feedback_decision in node output: {feedback_decision}")
-            except Exception as e:
-                logger.error(f"Error extracting feedback_decision: {e}")
-        
-        route = "accept" if feedback_decision == "accept" else "reject"
-        logger.debug(f"Final routing decision: {route}")
-        return route
+            
+            logger.info(f"Feedback decision is '{feedback_decision}'. Routing back for revision.")
+            logger.debug(f"--- Exiting feedback_route (routing: reject) ---")
+            return "reject"
