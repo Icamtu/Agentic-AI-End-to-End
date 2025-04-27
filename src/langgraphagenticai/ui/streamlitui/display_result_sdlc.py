@@ -172,7 +172,7 @@ class DisplaySdlcResult:
 
                         # Update session state with the new feedback structure
                         if current_stage not in st.session_state["feedback"]:
-                            st.session_state["feedback"][current_stage] = []
+                            st.session_state["feedback"][current_stage] = ["accept"]
 
                         if not is_approved:
                             st.session_state["feedback"][current_stage].append(comments)
@@ -350,13 +350,13 @@ class DisplaySdlcResult:
         feedback_data = st.session_state.get("feedback")
         logger.info(f"Feedback data read from session state: {feedback_data}")
 
-        # Clear feedback from session state BEFORE calling stream
-        if "feedback" in st.session_state:
-            try:
-                del st.session_state["feedback"]
-                logger.info("Feedback cleared from session state before resuming graph.")
-            except KeyError:
-                logger.warning("Attempted to delete 'feedback' from session state, but it was already gone.")
+        # # Clear feedback from session state BEFORE calling stream
+        # if "feedback" in st.session_state:
+        #     try:
+        #         del st.session_state["feedback"]
+        #         logger.info("Feedback cleared from session state before resuming graph.")
+        #     except KeyError:
+        #         logger.warning("Attempted to delete 'feedback' from session state, but it was already gone.")
 
         # Prepare input data for the resume call
         resume_input_data = {}

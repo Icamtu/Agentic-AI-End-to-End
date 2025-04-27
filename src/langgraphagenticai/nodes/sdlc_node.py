@@ -138,69 +138,64 @@ class SdlcNode:
     @log_entry_exit
     def process_feedback(self, state: State) -> dict:
         """Process user feedback by adding it to the state."""
-        current_stage_value = "N/A"
-        current_stage_obj = state.get('current_stage')
+        current_stage_value = state.current_stage.value if isinstance(state.current_stage, SDLCStages) else state.current_stage
+        logger.debug(f"Processing feedback for stage: {current_stage_value}")
 
-        # Determine the current stage
-        if isinstance(current_stage_obj, SDLCStages):
-            current_stage_value = current_stage_obj.value
-        elif isinstance(current_stage_obj, str):
-            current_stage_value = current_stage_obj
+        raw_feedback = state.feedback
+        logger.debug(f"Raw feedback data: {raw_feedback}")
+
+        # Only accept if feedback is {current_stage: ["accept"]}
+        if (
+            isinstance(raw_feedback, dict)
+            and current_stage_value in raw_feedback
+            and isinstance(raw_feedback[current_stage_value], list)
+            and raw_feedback[current_stage_value]
+            and raw_feedback[current_stage_value][-1].strip().lower() == "accept"
+        ):
+            state.feedback_decision = "accept"
+            return {
+                "feedback_decision": "accept",
+                "feedback": state.feedback
+            }
         else:
-            logger.warning("Current stage is not an SDLCStages enum or a string. Using 'N/A'.")
-
-        logger.info(f"Processing feedback for stage: {current_stage_value}")
-
-        # Read feedback from the graph state
-        feedback_data = state.get("feedback")  # Changed "feedback_input" to "feedback"
-        logger.info(f"Feedback data received in process_feedback: {feedback_data}")
-
-        # Process the feedback - store it in the state, associated with the current stage
-        if feedback_data is not None:
-            decision = feedback_data.get("approved")
-            feedback_text = feedback_data.get("comments")
-
-            if decision is False and feedback_text:
-                # Use the actual current stage for feedback
-                stage_for_feedback_value = current_stage_value  
-                
-                if isinstance(state, State) and hasattr(state, 'add_feedback'):
-                    state.add_feedback(SDLCStages(stage_for_feedback_value), feedback_text)  # Convert back to enum
-                elif isinstance(state, dict):
-                    if 'feedback' not in state:
-                        state['feedback'] = {}
-                    if stage_for_feedback_value not in state['feedback']:
-                        state['feedback'][stage_for_feedback_value] = []
-                    state['feedback'][stage_for_feedback_value].append(feedback_text)
-                else:
-                    logger.error("State object does not have 'add_feedback' method and is not a dict.")
-
-                logger.info(f"Feedback added to graph state for stage: {stage_for_feedback_value} - Rejected.")
-
-        return state
+            state.feedback_decision = "reject"
+            return {
+                "feedback_decision": "reject",
+                "feedback": state.feedback
+            }
 
     @log_entry_exit
     def feedbackRoute(self, state: State) -> str:
         """Route feedback based on SDLCState feedback format (Dict[str, List[str]]).
         Accept if feedback for current stage is empty or not present, reject if there are comments.
         """
-        # Get current stage as string
-        current_stage = state.get('current_stage')
-        if hasattr(current_stage, 'value'):
-            current_stage = current_stage.value
-        elif isinstance(current_stage, str):
-            pass
+        logger.debug(f"Routing feedback with state type: {type(state)}")
+        logger.debug(f"State content: {state}")
+        
+        feedback_decision = None
+        
+        # If state is a dict with feedback_decision
+        if isinstance(state, dict) and "feedback_decision" in state:
+            feedback_decision = state["feedback_decision"]
+            logger.debug(f"Found feedback_decision in state dict: {feedback_decision}")
+        # If state is a SDLCState object
+        elif isinstance(state, state.SDLCState):
+            logger.debug(f"State is SDLCState object")
+            if hasattr(state, "feedback_decision"):
+                feedback_decision = state.feedback_decision
+                logger.debug(f"Found feedback_decision as attribute: {feedback_decision}")
+        # Try to get from node output
         else:
-            current_stage = str(current_stage)
-
-        feedback_dict = state.get('feedback', {})
-        feedback_list = feedback_dict.get(current_stage, [])
-
-        logger.info(f"feedbackRoute: current_stage={current_stage}, feedback_dict={feedback_dict}")
-
-        if not feedback_list:
-            logger.info(f"Feedback for stage '{current_stage}' is empty or not present. Accepting.")
-            return "accept"
-        else:
-            logger.info(f"Feedback for stage '{current_stage}' present: {feedback_list}. Rejecting.")
-            return "reject"
+            logger.debug(f"State is neither dict nor SDLCState, trying alternative methods")
+            try:
+                if hasattr(state, "get"):
+                    node_output = state.get("ProcessFeedback", {})
+                    logger.debug(f"ProcessFeedback node output: {node_output}")
+                    feedback_decision = node_output.get("feedback_decision")
+                    logger.debug(f"Found feedback_decision in node output: {feedback_decision}")
+            except Exception as e:
+                logger.error(f"Error extracting feedback_decision: {e}")
+        
+        route = "accept" if feedback_decision == "accept" else "reject"
+        logger.debug(f"Final routing decision: {route}")
+        return route
