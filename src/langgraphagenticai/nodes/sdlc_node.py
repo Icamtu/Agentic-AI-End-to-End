@@ -29,7 +29,12 @@ class SdlcNode:
         state.project_goals = st.session_state.get("project_goals")
         state.project_scope = st.session_state.get("project_scope")
         state.project_objectives = st.session_state.get("project_objectives")
-
+        state.feedback = st.session_state.get("feedback")
+        state.feedback_decision = st.session_state.get("feedback_decision")
+        state.current_stage = st.session_state.get("current_stage")
+        state.generated_requirements = st.session_state.get("generated_requirements")
+        state.user_stories = st.session_state.get("user_stories")
+        
         return {"user_input": "captured"}
 
     @log_entry_exit
@@ -99,7 +104,8 @@ class SdlcNode:
         logger.info(f"--- Entering process_feedback ---")
         logger.info(f"Input state: {state.to_dict() if hasattr(state, 'to_dict') else state}")
         logger.info(f"State type: {type(state)}")
-
+        logger.info(f"State feedback in st: {st.session_state["feedback"]}")
+        state.feedback = st.session_state["feedback"]
         # Normalize current_stage to enum
         if isinstance(state, dict):
             current_stage = state.get("current_stage", "planning")

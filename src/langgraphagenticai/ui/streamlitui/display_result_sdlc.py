@@ -193,27 +193,10 @@ class DisplaySdlcResult:
         feedback_data = st.session_state.get("feedback")
         logger.info(f"Feedback data: %s", feedback_data)
 
-        # Build a full state dict for resumption
-        resume_state = {
-            "session_id": st.session_state.get("session_id", self.config.get("configurable", {}).get("session_id", "N/A")),
-            "current_stage": "planning",
-            "project_name": st.session_state.get("project_name"),
-            "project_description": st.session_state.get("project_description"),
-            "project_goals": st.session_state.get("project_goals"),
-            "project_scope": st.session_state.get("project_scope"),
-            "project_objectives": st.session_state.get("project_objectives"),
-            "generated_requirements": st.session_state.get("generated_requirements"),
-            "generated_user_stories": st.session_state.get("generated_user_stories"),
-            "feedback": feedback_data,  # Explicitly include feedback
-            "feedback_decision": None,
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat(),
-            "history": []
-        }
-
         thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
         checkpoint = None
         checkpoint_state = None
+
         if hasattr(self.graph, 'checkpointer'):
             checkpoint_tuple = self.graph.checkpointer.get_tuple({"configurable": {"thread_id": thread_id}})
             if checkpoint_tuple:
@@ -231,29 +214,37 @@ class DisplaySdlcResult:
 
         logger.info(f"Checkpoint state before resumption: %s", checkpoint_state)
 
-        # Merge feedback into checkpointed state
-        if checkpoint_state is not None:
-            if isinstance(checkpoint_state, dict):
-                if "channel_values" in checkpoint_state and isinstance(checkpoint_state["channel_values"], dict):
-                    checkpoint_state["channel_values"].update(resume_state)
-                else:
-                    checkpoint_state.update(resume_state)
-            else:
-                for key, value in resume_state.items():
-                    setattr(checkpoint_state, key, value)
-        else:
-            checkpoint_state = resume_state
+        # Reconstruct resume_state from checkpoint
+        resume_state = {
+            "session_id": checkpoint_state.get("channel_values", {}).get("session_id"),
+            "current_stage": checkpoint_state.get("channel_values", {}).get("current_stage", "planning"),
+            "project_name": checkpoint_state.get("channel_values", {}).get("project_name"),
+            "project_description": checkpoint_state.get("channel_values", {}).get("project_description"),
+            "project_goals": checkpoint_state.get("channel_values", {}).get("project_goals"),
+            "project_scope": checkpoint_state.get("channel_values", {}).get("project_scope"),
+            "project_objectives": checkpoint_state.get("channel_values", {}).get("project_objectives"),
+            "feedback": checkpoint_state.get("channel_values", {}).get("feedback", {}),  # Ensure default is {}
+            "feedback_decision": checkpoint_state.get("channel_values", {}).get("feedback_decision"),
+            "created_at": checkpoint_state.get("channel_values", {}).get("created_at", datetime.now().isoformat()),
+            "last_updated": checkpoint_state.get("channel_values", {}).get("last_updated", datetime.now().isoformat()),
+            "history": checkpoint_state.get("channel_values", {}).get("history", [])
+        }
 
-        logger.info(f"Checkpoint state after feedback insertion: %s", checkpoint_state)
+        # Merge feedback from st.session_state (if it's more recent)
+        if feedback_data:
+            resume_state["feedback"] = feedback_data
 
-        requirements = st.session_state.get("generated_requirements")
-        user_stories = st.session_state.get("generated_user_stories")
+        logger.info(f"Reconstructed resume_state: %s", resume_state)
+
+        # Initialize requirements, user_stories, and graph_completed_flag
+        requirements = None
+        user_stories = None
         graph_completed_flag = False
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
-                # Resume the graph using Command(resume=...) with merged state
-                for event in self.graph.stream(Command(resume=checkpoint_state), config=self.config):
+                # Resume the graph using Command(resume=...) with the reconstructed resume_state
+                for event in self.graph.stream(Command(resume=resume_state), config=self.config):
                     logger.info(f"Resume Event: %s", json.dumps(event, default=str))
                     for node, state in event.items():
                         if state is None:
@@ -287,6 +278,8 @@ class DisplaySdlcResult:
         st.session_state["needs_resume_after_feedback"] = False
         logger.info("Graph resumption completed. Graph completed: %s", graph_completed_flag)
         logger.info("Session state after resumption: %s", "st.session_state")
+
+
     @log_entry_exit
     def _display_design_phase(self):
         # st.header("Design Phase")
