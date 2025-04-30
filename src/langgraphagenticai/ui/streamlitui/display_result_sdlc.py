@@ -11,6 +11,10 @@ import base64
 from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 import os
 from langgraph.graph import END
+from langgraph.types import Command
+
+exclude_keys = ["api_key", "OPENAI_API_KEY","GOOGLE_API_KEY","TAVILY_API_KEY","GROQ_API_KEY","state"]
+safe_state = {k: v for k, v in st.session_state.items() if k not in exclude_keys}
 
 # --- Pydantic Model for Feedback ---
 class ReviewFeedback(BaseModel):
@@ -51,6 +55,7 @@ class DisplaySdlcResult:
     def handle_sdlc_workflow(self):
         """Manages the overall SDLC workflow display and interaction in Streamlit."""
         st.title("Software Development Life Cycle (SDLC) Workflow")
+        st.write(safe_state)
 
         # Prevent concurrent runs
         if st.session_state.get("graph_running"):
@@ -119,7 +124,7 @@ class DisplaySdlcResult:
             logger.info("Initialized empty feedback dictionary in session state.")
 
         if requirements_exist:
-            with st.expander("Generated Requirements", expanded=True):
+            with st.expander("Generated Requirements", expanded=False):
                 st.markdown(st.session_state["generated_requirements"])
                 if st.button("Save Requirements", key="save_requirements_planning"):
                     self._save_artifact(st.session_state["generated_requirements"], "requirements.txt")
@@ -127,7 +132,7 @@ class DisplaySdlcResult:
             st.info("Requirements will be displayed here after generation.")
 
         if stories_exist:
-            with st.expander("Generated User Stories", expanded=True):
+            with st.expander("Generated User Stories", expanded=False):
                 st.markdown(st.session_state["generated_user_stories"])
                 if st.button("Save User Stories", key="save_user_stories_planning"):
                     self._save_artifact(st.session_state["generated_user_stories"], "user_stories.txt")
@@ -168,6 +173,9 @@ class DisplaySdlcResult:
                         if not is_approved:
                             st.session_state["user_stories_generated"] = False
                         st.session_state["feedback_pending"] = False
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
+                        st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
+                        st.write("Session state after feedback: %s", st.session_state)
                         st.rerun()
             else:
                 st.success("✅ User stories approved. Planning phase completed.")
@@ -181,13 +189,14 @@ class DisplaySdlcResult:
     def _resume_sdlc_graph(self):
         """Resumes the graph execution from the checkpoint after feedback."""
         logger.info("Resuming SDLC graph execution...")
-        logger.info("Session state before resumption: %s", st.session_state)
+        logger.info("Session state before resumption: %s", "st.session_state")
         feedback_data = st.session_state.get("feedback")
         logger.info(f"Feedback data: %s", feedback_data)
-        
-        # Prepare input data with project details and feedback
-        resume_input_data = {
-            "feedback": feedback_data,
+
+        # Build a full state dict for resumption
+        resume_state = {
+            "session_id": st.session_state.get("session_id", self.config.get("configurable", {}).get("session_id", "N/A")),
+            "current_stage": "planning",
             "project_name": st.session_state.get("project_name"),
             "project_description": st.session_state.get("project_description"),
             "project_goals": st.session_state.get("project_goals"),
@@ -195,15 +204,22 @@ class DisplaySdlcResult:
             "project_objectives": st.session_state.get("project_objectives"),
             "generated_requirements": st.session_state.get("generated_requirements"),
             "generated_user_stories": st.session_state.get("generated_user_stories"),
+            "feedback": feedback_data,  # Explicitly include feedback
+            "feedback_decision": None,
+            "created_at": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat(),
+            "history": []
         }
-        
+
         thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
         checkpoint = None
+        checkpoint_state = None
         if hasattr(self.graph, 'checkpointer'):
             checkpoint_tuple = self.graph.checkpointer.get_tuple({"configurable": {"thread_id": thread_id}})
             if checkpoint_tuple:
                 checkpoint = checkpoint_tuple.checkpoint
-                logger.info(f"Checkpoint retrieved: %s", checkpoint)
+                logger.info(f"Checkpoint retrieved: %s", "checkpoint")
+                checkpoint_state = checkpoint.copy() if hasattr(checkpoint, 'copy') else dict(checkpoint)
             else:
                 logger.error("No checkpoint found for thread_id: %s", thread_id)
                 st.error("No valid checkpoint found. Please restart the workflow.")
@@ -213,20 +229,36 @@ class DisplaySdlcResult:
             st.error("Graph configuration error. Please restart the workflow.")
             return
 
+        logger.info(f"Checkpoint state before resumption: %s", checkpoint_state)
+
+        # Merge feedback into checkpointed state
+        if checkpoint_state is not None:
+            if isinstance(checkpoint_state, dict):
+                if "channel_values" in checkpoint_state and isinstance(checkpoint_state["channel_values"], dict):
+                    checkpoint_state["channel_values"].update(resume_state)
+                else:
+                    checkpoint_state.update(resume_state)
+            else:
+                for key, value in resume_state.items():
+                    setattr(checkpoint_state, key, value)
+        else:
+            checkpoint_state = resume_state
+
+        logger.info(f"Checkpoint state after feedback insertion: %s", checkpoint_state)
+
         requirements = st.session_state.get("generated_requirements")
         user_stories = st.session_state.get("generated_user_stories")
         graph_completed_flag = False
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
-                # Stream from checkpoint with feedback and project details
-                for event in self.graph.stream(resume_input_data, config=self.config):
+                # Resume the graph using Command(resume=...) with merged state
+                for event in self.graph.stream(Command(resume=checkpoint_state), config=self.config):
                     logger.info(f"Resume Event: %s", json.dumps(event, default=str))
                     for node, state in event.items():
                         if state is None:
                             logger.info(f"Node '{node}' has null state, skipping.")
                             continue
-                        # Handle tuple or other non-dict states
                         if not isinstance(state, dict):
                             logger.warning(f"Node '{node}' state is not a dict: {type(state)}. Skipping state processing.")
                             continue
@@ -237,93 +269,101 @@ class DisplaySdlcResult:
                             user_stories = state["user_stories"]
                         if "feedback_decision" in state:
                             logger.info("Feedback decision: %s", state["feedback_decision"])
-                        # Check for END condition
                         if node == END or node == "__end__" or state.get("next_node") == END:
                             logger.info("Graph reached END node")
                             graph_completed_flag = True
-                        # Handle interrupt for feedback
                         if node == "__interrupt__":
                             logger.info("Graph interrupted for feedback processing")
             except Exception as e:
-                logger.error(f"Error during graph stream: %s", e, exc_info=True)
+                logger.error(f"Error during graph stream: {e}", exc_info=True)
                 st.error(f"An error occurred during graph resumption: {e}")
                 return
 
-        # Update session state
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
         st.session_state["requirements_generated"] = requirements is not None
         st.session_state["user_stories_generated"] = user_stories is not None and not graph_completed_flag
         st.session_state["graph_completed"] = graph_completed_flag
         st.session_state["needs_resume_after_feedback"] = False
-        st.session_state["feedback"] = {}
         logger.info("Graph resumption completed. Graph completed: %s", graph_completed_flag)
-        logger.info("Session state after resumption: %s", st.session_state)
-
+        logger.info("Session state after resumption: %s", "st.session_state")
     @log_entry_exit
     def _display_design_phase(self):
-        st.header("Design Phase")
-        st.info("Design phase details will be displayed here in future implementations.")
-
+        # st.header("Design Phase")
+        # st.info("Design phase details will be displayed here in future implementations.")
+        pass
     @log_entry_exit
     def _display_design_artifacts(self):
-        st.subheader("Design Artifacts")
-        st.info("Design artifacts (e.g., architecture diagrams, UI mockups) will be displayed here.")
+        # st.subheader("Design Artifacts")
+        # st.info("Design artifacts (e.g., architecture diagrams, UI mockups) will be displayed here.")
+        pass
 
     @log_entry_exit
     def _display_development_phase(self):
-        st.header("Development Phase")
-        st.info("Development phase details will be displayed here in future implementations.")
+        # st.header("Development Phase")
+        # st.info("Development phase details will be displayed here in future implementations.")
+        pass
 
     @log_entry_exit
     def _display_development_artifacts(self):
-        st.subheader("Development Artifacts")
-        st.info("Development artifacts (e.g., code snippets, build logs) will be displayed here.")
+        # st.subheader("Development Artifacts")
+        # st.info("Development artifacts (e.g., code snippets, build logs) will be displayed here.")
+        pass
 
     @log_entry_exit
     def _display_testing_phase(self):
-        st.header("Testing Phase")
-        st.info("Testing phase details will be displayed here in future implementations.")
+        # st.header("Testing Phase")
+        # st.info("Testing phase details will be displayed here in future implementations.")
+        pass
 
     @log_entry_exit
     def _display_testing_artifacts(self):
-        st.subheader("Testing Artifacts")
-        st.info("Testing artifacts (e.g., test cases, bug reports) will be displayed here.")
+        # st.subheader("Testing Artifacts")
+        # st.info("Testing artifacts (e.g., test cases, bug reports) will be displayed here.")
+        pass
 
     @log_entry_exit
     def _display_deployment_phase(self):
-        st.header("Deployment Phase")
-        st.info("Deployment phase details will be displayed here in future implementations.")
+        # st.header("Deployment Phase")
+        # st.info("Deployment phase details will be displayed here in future implementations.")
+        pass
 
     @log_entry_exit
     def _display_deployment_artifacts(self):
-        st.subheader("Deployment Artifacts")
-        st.info("Deployment artifacts (e.g., deployment plans, monitoring dashboards) will be displayed here.")
+        # st.subheader("Deployment Artifacts")
+        # st.info("Deployment artifacts (e.g., deployment plans, monitoring dashboards) will be displayed here.")
+        pass
 
     @log_entry_exit
     def _collect_project_requirements(self):
         """Displays the form to collect initial project details."""
-        DefaultProjectName = "The Book Nook"
-        DefaultDescription = """Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, 
-                                to allow customers to browse their inventory, place orders online, and learn about upcoming events."""
-        DefaultGoals = """ Increase sales and revenue for The Book Nook.
-                            Enhance customer engagement and loyalty.
-                            Modernize The Book Nook's presence and reach a wider audience in Bangalore. """
-        DefaultScope = """ Inclusions:
-                                Developing a mobile application compatible with Android and iOS.
-                                Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
-                                Integration with the bookstore's existing inventory management system.
-                                Basic user support documentation.
-                            Exclusions:
-                                Developing a separate tablet application.
-                                Implementing a loyalty points program (will be considered in a future phase).
-                                Integrating with social media platforms for direct purchasing.
-                                Providing real-time inventory updates beyond a daily sync.
-                                Developing advanced analytics dashboards for the bookstore owner in this phase."""
-        DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
-                            Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
-                            Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
-                            Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
+        # DefaultProjectName = "The Book Nook"
+        # DefaultDescription = """Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, 
+        #                         to allow customers to browse their inventory, place orders online, and learn about upcoming events."""
+        # DefaultGoals = """ Increase sales and revenue for The Book Nook.
+        #                     Enhance customer engagement and loyalty.
+        #                     Modernize The Book Nook's presence and reach a wider audience in Bangalore. """
+        # DefaultScope = """ Inclusions:
+        #                         Developing a mobile application compatible with Android and iOS.
+        #                         Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
+        #                         Integration with the bookstore's existing inventory management system.
+        #                         Basic user support documentation.
+        #                     Exclusions:
+        #                         Developing a separate tablet application.
+        #                         Implementing a loyalty points program (will be considered in a future phase).
+        #                         Integrating with social media platforms for direct purchasing.
+        #                         Providing real-time inventory updates beyond a daily sync.
+        #                         Developing advanced analytics dashboards for the bookstore owner in this phase."""
+        # DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
+        DefaultProjectName="demo_project"
+        DefaultDescription="demo_description"
+        DefaultGoals="demo_goals"
+        DefaultScope="demo_scope"
+        DefaultObjectives="demo_objectives"
+
 
         st.subheader("Define Project Details")
         with st.form("sdlc_requirements_form"):

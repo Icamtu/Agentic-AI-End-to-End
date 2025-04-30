@@ -243,51 +243,117 @@ class SdlcNode:
 
         return {"user_input": "captured"}
 
+    # def generate_requirements(self, state: SDLCState) -> dict:
+    #     """Generate requirements based on user input."""
+    #     logger.debug(f"Generating requirements with state: {state}")
+    #     try:
+    #         requirements_input = {
+    #             "project_name": state.project_name if state.project_name is not None else "No project name provided",
+    #             "project_description": state.project_description if state.project_description is not None else "No project description provided",
+    #             "project_goals": state.project_goals if state.project_goals is not None else "No project goals provided",
+    #             "project_scope": state.project_scope if state.project_scope is not None else "No project scope provided",
+    #             "project_objectives": state.project_objectives if state.project_objectives is not None else "No project objectives provided",
+    #         }
+    #         prompt_string = f"""Based on the following project details, generate a comprehensive list of detailed software requirements.
+    #                             Ensure the requirements are clear, unambiguous, verifiable, and complete based on the provided description, goals, scope, and objectives.
+
+    #                             Project Details:
+    #                             {json.dumps(requirements_input, indent=2)}
+
+    #                             Detailed Requirements:
+    #                         """""
+    #         # Construct a list of messages for the LLM
+    #         messages = [SystemMessage(content="You are an expert project requirements generator."),HumanMessage(content=prompt_string)]
+    #         response = self.llm.invoke(messages)
+    #         state.generated_requirements = response.content if hasattr(response, 'content') else str(response)  
+    #         return {"generated_requirements": state.generated_requirements}
+    #     except Exception as e:
+    #         logger.error(f"Error generating requirements: {e}")
+    #         state.generated_requirements = f"Error generating requirements: {str(e)}"
+    #         return {"generated_requirements": state.generated_requirements}
+
     def generate_requirements(self, state: SDLCState) -> dict:
-        """Generate requirements based on user input."""
-        logger.debug(f"Generating requirements with state: {state}")
-        try:
-            requirements_input = {
-                "project_name": state.project_name if state.project_name is not None else "No project name provided",
-                "project_description": state.project_description if state.project_description is not None else "No project description provided",
-                "project_goals": state.project_goals if state.project_goals is not None else "No project goals provided",
-                "project_scope": state.project_scope if state.project_scope is not None else "No project scope provided",
-                "project_objectives": state.project_objectives if state.project_objectives is not None else "No project objectives provided",
-            }
-            prompt_string = f"""Based on the following project details, generate a comprehensive list of detailed software requirements.\nEnsure the requirements are clear, unambiguous, verifiable, and complete based on the provided description, goals, scope, and objectives.\n\nProject Details:\n{json.dumps(requirements_input, indent=2)}\n\nDetailed Requirements:\n"""
-            messages = [SystemMessage(content="You are an expert project requirements generator."), HumanMessage(content=prompt_string)]
-            response = self.llm.invoke(messages)
-            state.generated_requirements = response.content if hasattr(response, 'content') else str(response)
-            return {"generated_requirements": state.generated_requirements}
-        except Exception as e:
-            logger.error(f"Error generating requirements: {e}")
-            state.generated_requirements = f"Error generating requirements: {str(e)}"
-            return {"generated_requirements": state.generated_requirements}
+        """Dummy requirements generator for testing feedback loop."""
+        logger.debug("Dummy generate_requirements called")
+        state.generated_requirements = "DUMMY REQUIREMENTS"
+        return {"generated_requirements": state.generated_requirements}
+
+    # def generate_user_stories(self, state: SDLCState) -> dict:
+    #     """Generate user stories based on the requirements, incorporating feedback if available."""
+    #     logger.debug("Generating user stories")
+    #     if not state.generated_requirements:
+    #         state.user_stories = "No requirements generated yet."
+    #         logger.warning("Cannot generate user stories without requirements.")
+    #         return {"user_stories": state.user_stories}
+        
+    #     feedback = state.get_last_feedback_for_stage(SDLCStages.PLANNING)
+    #     logger.debug(f"Feedback for user stories: {feedback}")
+    #     if feedback:
+    #         prompt_string = f"""Based on the following software requirements AND feedback, generate a list of user stories.
+    #                         The previous version was rejected for the following reason: "{feedback}"
+    #                         Please make sure to address this feedback in your new user stories.
+                            
+    #                         Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
+    #                         Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.
+
+    #                         Requirements:
+    #                         {state.generated_requirements}
+                            
+    #                         Previous Feedback to Address:
+    #                         {feedback}
+
+    #                         User Stories:
+    #                         """""
+    #     else:
+
+    #         try:
+    #             if state.generated_requirements:
+    #                 prompt_string =  f"""Based on the following software requirements, generate a list of user stories.
+    #                                 Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
+    #                                 Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.
+
+    #                                 Requirements:
+    #                                 {state.generated_requirements}
+
+    #                                 User Stories:
+    #                                 """""
+    #                 sys_prompt= f"""
+    #                                 You are a Senior Software Analyst expert in Agile SDLC and user story creation. Your task is to generate detailed user stories based on the provided requirements.
+
+    #                                 Project Name: {state.project_name or 'N/A'}
+
+    #                                 Guidelines:
+
+    #                                 One Requirement = One User Story: Create a distinct user story for each functional requirement identified.
+    #                                 Unique Identifier: Assign each user story a unique ID: [PROJECT_CODE]-US-[XXX] (e.g., BN-US-001 for 'The Book Nook'). Use a short uppercase code for the project.
+    #                                 Structure (for each story):
+    #                                 Unique Identifier: [PROJECT_CODE]-US-XXX
+    #                                 Title: Clear summary of the functionality.
+    #                                 Description: As a [user role], I want [goal/feature] so that [reason/benefit].
+    #                                 Acceptance Criteria: Bulleted list of testable conditions (- [Criterion]).
+    #                                 Clarity: Use domain-specific terms. Ensure stories are specific, testable, achievable, and Agile-aligned. 
+    #                                 {f'5. Incorporate Feedback: The previous version was rejected. Address the following feedback while refining the user stories: "{feedback}"' if feedback else ''} """ 
+                    
+    #                 messages = [
+    #                     SystemMessage(content=sys_prompt),
+    #                     HumanMessage(content=prompt_string)
+    #                 ]
+    #                 response = self.llm.invoke(messages)
+    #                 state.user_stories = response.content if hasattr(response, 'content') else str(response)
+    #                 return {"user_stories": state.user_stories}
+    #             else:
+    #                 state.user_stories = "No requirements generated yet."
+    #                 return {"user_stories": state.user_stories}
+    #         except Exception as e:
+    #             logger.error(f"Error generating user stories: {e}")
+    #             state.user_stories = f"Error generating user stories: {str(e)}"
+    #             return {"user_stories": state.user_stories}
 
     def generate_user_stories(self, state: SDLCState) -> dict:
-        """Generate user stories based on the requirements, incorporating feedback if available."""
-        logger.debug("Generating user stories")
-        if not state.generated_requirements:
-            state.user_stories = "No requirements generated yet."
-            logger.warning("Cannot generate user stories without requirements.")
-            return {"user_stories": state.user_stories}
-        feedback = state.get_last_feedback_for_stage(SDLCStages.PLANNING)
-        logger.debug(f"Feedback for user stories: {feedback}")
-        if feedback:
-            prompt_string = f"""Based on the following software requirements AND feedback, generate a list of user stories.\nThe previous version was rejected for the following reason: \"{feedback}\"\nPlease make sure to address this feedback in your new user stories.\n\nEach user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'\nEnsure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.\n\nRequirements:\n{state.generated_requirements}\n\nPrevious Feedback to Address:\n{feedback}\n\nUser Stories:\n"""
-        else:
-            prompt_string = f"""Based on the following software requirements, generate a list of user stories.\nEach user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'\nEnsure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.\n\nRequirements:\n{state.generated_requirements}\n\nUser Stories:\n"""
-        sys_prompt = f"""
-            You are a Senior Software Analyst expert in Agile SDLC and user story creation. Your task is to generate detailed user stories based on the provided requirements.\n\nProject Name: {state.project_name or 'N/A'}\n\nGuidelines:\n\nOne Requirement = One User Story: Create a distinct user story for each functional requirement identified.\nUnique Identifier: Assign each user story a unique ID: [PROJECT_CODE]-US-[XXX] (e.g., BN-US-001 for 'The Book Nook'). Use a short uppercase code for the project.\nStructure (for each story):\nUnique Identifier: [PROJECT_CODE]-US-XXX\nTitle: Clear summary of the functionality.\nDescription: As a [user role], I want [goal/feature] so that [reason/benefit].\nAcceptance Criteria: Bulleted list of testable conditions (- [Criterion]).\nClarity: Use domain-specific terms. Ensure stories are specific, testable, achievable, and Agile-aligned.\n{f'5. Incorporate Feedback: The previous version was rejected. Address the following feedback while refining the user stories: "{feedback}"' if feedback else ''}\n"""
-        try:
-            messages = [SystemMessage(content=sys_prompt), HumanMessage(content=prompt_string)]
-            response = self.llm.invoke(messages)
-            state.user_stories = response.content if hasattr(response, 'content') else str(response)
-            return {"user_stories": state.user_stories}
-        except Exception as e:
-            logger.error(f"Error generating user stories: {e}")
-            state.user_stories = f"Error generating user stories: {str(e)}"
-            return {"user_stories": state.user_stories}
+        """Dummy user stories generator for testing feedback loop."""
+        logger.debug("Dummy generate_user_stories called")
+        state.user_stories = "DUMMY USER STORIES"
+        return {"user_stories": state.user_stories}
     
     
     def process_feedback(self, state: SDLCState) -> dict:
@@ -295,77 +361,63 @@ class SdlcNode:
         Process user feedback passed via state and update state with decision.
         Only { "current_stage": ["accept"] } ends the process.
         """
-        logger.debug(f"--- Entering process_feedback ---")
-        logger.debug(f"Input state: {state.to_dict() if isinstance(state, SDLCState) else state}")
-
-        # Normalize current_stage to enum
-        if isinstance(state.current_stage, str):
-            try:
-                current_stage_enum = SDLCStages(state.current_stage)
-            except ValueError:
-                logger.warning(f"Unknown current_stage string: {state.current_stage}")
-                current_stage_enum = None
-        else:
-            current_stage_enum = state.current_stage
-
-        current_stage_value = current_stage_enum.value if current_stage_enum else state.current_stage
-
+        current_stage_value = state.current_stage.value if isinstance(state.current_stage, SDLCStages) else state.current_stage
         logger.debug(f"Processing feedback for stage: {current_stage_value}")
 
         raw_feedback = state.feedback
-        logger.debug(f"Raw feedback data received in state: {raw_feedback}")
+        logger.debug(f"Raw feedback data: {raw_feedback}")
 
         # Only accept if feedback is {current_stage: ["accept"]}
-        logger.debug(f"Checking acceptance: current_stage_value={current_stage_value}, raw_feedback={raw_feedback}")
         if (
             isinstance(raw_feedback, dict)
             and current_stage_value in raw_feedback
             and isinstance(raw_feedback[current_stage_value], list)
-            and raw_feedback[current_stage_value] # Check if list is not empty
+            and raw_feedback[current_stage_value]
             and raw_feedback[current_stage_value][-1].strip().lower() == "accept"
         ):
-            logger.info(f"Feedback for stage '{current_stage_value}' is ACCEPT. Ending flow.")
             state.feedback_decision = "accept"
+            return {
+                "feedback_decision": "accept",
+                "feedback": state.feedback
+            }
         else:
-            logger.info(f"Feedback for stage '{current_stage_value}' is not accept. Looping back.")
             state.feedback_decision = "reject"
-
-        return_value = {
-            "feedback_decision": state.feedback_decision,
-            "feedback": state.feedback # Pass the original feedback dict back
-        }
-        logger.debug(f"Returning from process_feedback: {return_value}")
-        logger.debug(f"--- Exiting process_feedback ---")
-        return return_value
+            return {
+                "feedback_decision": "reject",
+                "feedback": state.feedback
+            }
     
     def feedback_route(self, state: SDLCState) -> str:
-        """Routes based on the feedback decision stored in the state."""
-        logger.debug(f"--- Entering feedback_route ---")
-        logger.debug(f"Routing feedback. Current state includes feedback_decision: {hasattr(state, 'feedback_decision')}")
-        # Log the full state dictionary received by the conditional edge function
-        logger.debug(f"Full state content received by feedback_route: {state.to_dict() if isinstance(state, SDLCState) else state}")
-
-        # The state object passed to a conditional edge function is the updated state
-        # after the preceding node (ProcessFeedback) has run.
-        if not isinstance(state, SDLCState):
-            logger.error(f"Incorrect state type passed to feedback_route: {type(state)}. Defaulting to reject.")
-            logger.debug(f"--- Exiting feedback_route (routing: reject due to type error) ---")
-            # Default to reject if state type is unexpected
-            return "reject"
-
-        # Access feedback_decision directly from the state object
-        feedback_decision = state.feedback_decision
-        logger.debug(f"Feedback decision read from state object: {feedback_decision}")
-
-        if feedback_decision == "accept":
-            logger.info("Feedback accepted. Routing to END.")
-            logger.debug(f"--- Exiting feedback_route (routing: accept) ---")
-            return "accept"
+        logger.debug(f"Routing feedback with state type: {type(state)}")
+        logger.debug(f"State content: {state}")
+        
+        feedback_decision = None
+        
+        # If state is a dict with feedback_decision
+        if isinstance(state, dict) and "feedback_decision" in state:
+            feedback_decision = state["feedback_decision"]
+            logger.debug(f"Found feedback_decision in state dict: {feedback_decision}")
+        # If state is a SDLCState object
+        elif isinstance(state, SDLCState):
+            logger.debug(f"State is SDLCState object")
+            if hasattr(state, "feedback_decision"):
+                feedback_decision = state.feedback_decision
+                logger.debug(f"Found feedback_decision as attribute: {feedback_decision}")
+        # Try to get from node output
         else:
-            # This branch handles None (if feedback_decision wasn't set) or "reject"
-            logger.info(f"Feedback decision is '{feedback_decision}'. Routing back for revision.")
-            logger.debug(f"--- Exiting feedback_route (routing: reject) ---")
-            return "reject"
+            logger.debug(f"State is neither dict nor SDLCState, trying alternative methods")
+            try:
+                if hasattr(state, "get"):
+                    node_output = state.get("ProcessFeedback", {})
+                    logger.debug(f"ProcessFeedback node output: {node_output}")
+                    feedback_decision = node_output.get("feedback_decision")
+                    logger.debug(f"Found feedback_decision in node output: {feedback_decision}")
+            except Exception as e:
+                logger.error(f"Error extracting feedback_decision: {e}")
+        
+        route = "accept" if feedback_decision == "accept" else "reject"
+        logger.debug(f"Final routing decision: {route}")
+        return route
 
 
 ##################################################################################################
@@ -436,16 +488,3 @@ class SdlcGraphBuilder:
 # Assuming 'model' is your initialized LLM
 sdlc_builder_instance = SdlcGraphBuilder(model)
 agent = sdlc_builder_instance.build_graph()
-
-if __name__ == "__main__":
-    # Example usage
-    state = SDLCState(session_id="12345")
-    state.project_name = "Sample Project"
-    state.project_description = "This is a sample project."
-    state.project_goals = "To demonstrate the SDLC process."
-    state.project_scope = "Web application development."
-    state.project_objectives = "Complete the project in 3 months."
-
-    # Run the agent with the initial state
-    result = agent.run(state)
-    print(result)  # Output the result of the agent run
