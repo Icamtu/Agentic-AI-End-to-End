@@ -104,15 +104,13 @@ class SdlcNode:
         logger.info(f"--- Entering process_feedback ---")
         logger.info(f"Input state: {state.to_dict() if hasattr(state, 'to_dict') else state}")
         logger.info(f"State type: {type(state)}")
-        logger.info(f"State feedback in st: {st.session_state["feedback"]}")
-        state.feedback = st.session_state["feedback"]
-        # Normalize current_stage to enum
-        if isinstance(state, dict):
-            current_stage = state.get("current_stage", "planning")
-            raw_feedback = state.get("feedback", {})
-        else:
-            current_stage = state.current_stage if hasattr(state, "current_stage") else "planning"
-            raw_feedback = getattr(state, "feedback", {})
+        #logger.info(f"State feedback in st: {st.session_state['feedback']}")  # Removed - no longer needed
+
+        # Access feedback directly from state
+        #state.feedback = st.session_state["feedback"] # Removed - no longer needed
+
+        current_stage = state.get("current_stage") if isinstance(state, dict) else state.current_stage
+        raw_feedback = state.get("feedback", {}) if isinstance(state, dict) else getattr(state, "feedback", {})
 
         if isinstance(current_stage, str):
             current_stage_value = current_stage

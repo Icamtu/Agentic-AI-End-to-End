@@ -214,7 +214,7 @@ class DisplaySdlcResult:
 
         logger.info(f"Checkpoint state before resumption: %s", checkpoint_state)
 
-        # Reconstruct resume_state from checkpoint
+        # Reconstruct resume_state, ensuring 'feedback' is at the top level
         resume_state = {
             "session_id": checkpoint_state.get("channel_values", {}).get("session_id"),
             "current_stage": checkpoint_state.get("channel_values", {}).get("current_stage", "planning"),
@@ -223,14 +223,14 @@ class DisplaySdlcResult:
             "project_goals": checkpoint_state.get("channel_values", {}).get("project_goals"),
             "project_scope": checkpoint_state.get("channel_values", {}).get("project_scope"),
             "project_objectives": checkpoint_state.get("channel_values", {}).get("project_objectives"),
-            "feedback": checkpoint_state.get("channel_values", {}).get("feedback", {}),  # Ensure default is {}
+            "feedback": checkpoint_state.get("channel_values", {}).get("feedback", {}),
             "feedback_decision": checkpoint_state.get("channel_values", {}).get("feedback_decision"),
             "created_at": checkpoint_state.get("channel_values", {}).get("created_at", datetime.now().isoformat()),
             "last_updated": checkpoint_state.get("channel_values", {}).get("last_updated", datetime.now().isoformat()),
             "history": checkpoint_state.get("channel_values", {}).get("history", [])
         }
 
-        # Merge feedback from st.session_state (if it's more recent)
+        # Override with st.session_state feedback
         if feedback_data:
             resume_state["feedback"] = feedback_data
 
@@ -240,6 +240,7 @@ class DisplaySdlcResult:
         requirements = None
         user_stories = None
         graph_completed_flag = False
+        final_state = {}  # To hold the final state after graph execution
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
@@ -254,6 +255,7 @@ class DisplaySdlcResult:
                             logger.warning(f"Node '{node}' state is not a dict: {type(state)}. Skipping state processing.")
                             continue
                         logger.info(f"Node '{node}' updated state: %s", state)
+                        final_state.update(state)  # Capture the latest state
                         if "generated_requirements" in state:
                             requirements = state["generated_requirements"]
                         if "user_stories" in state:
@@ -269,6 +271,11 @@ class DisplaySdlcResult:
                 logger.error(f"Error during graph stream: {e}", exc_info=True)
                 st.error(f"An error occurred during graph resumption: {e}")
                 return
+
+        # WORKAROUND: Explicitly update state after graph execution
+        if feedback_data:
+            final_state["feedback"] = feedback_data
+            logger.info(f"WORKAROUND: Updated final_state with feedback: {feedback_data}")
 
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
