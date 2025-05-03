@@ -101,8 +101,7 @@ class SDLCState(BaseModel):
     # Artifacts generated during different SDLC stages
     generated_requirements: Optional[str] = Field(None, description="Generated requirements based on user input.")
     generated_user_stories: Optional[str] = Field(None, description="Generated user stories based on requirements.")
-    planning_artifact: Optional[str] = Field(None, description="Artifact generated during the planning stage.")
-    design_artifact: Optional[str] = Field(None, description="Artifact generated during the design stage.")
+    design_documents: Optional[str] = Field(None, description="Documents generated during the design stage.")
     development_artifact: Optional[str] = Field(None, description="Artifact generated during the development stage.")
     testing_artifact: Optional[str] = Field(None, description="Artifact generated during the testing stage.")
     deployment_artifact: Optional[str] = Field(None, description="Artifact generated during the deployment stage.")

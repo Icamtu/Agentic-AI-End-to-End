@@ -96,6 +96,97 @@ class SdlcNode:
         return {"user_stories": state.user_stories}
     
     @log_entry_exit
+    def design_documents(self, state: State) -> dict:
+        """DUMMY: Generate design documents based on user stories (original code commented for testing)."""
+        # logger.info("Generating design documents")
+        # if not state.user_stories:
+        #     state.design_documents = "No user stories generated yet."
+        #     logger.warning("Cannot generate design documents without user stories.")
+        #     return {"design_documents": state.design_documents}
+        # try:
+        #     prompt_string = f"""Based on the following user stories, generate a detailed design document.\n                            The design document should include:\n                            1. Overview of the system architecture\n                            2. Detailed component designs\n                            3. Data flow diagrams\n                            4. Database schema\n                            5. API specifications\n                            \n                            User Stories:\n                            {state.user_stories}\n\n                            Design Document:\n                            """"
+        #     messages = [SystemMessage(content="You are an expert software designer."), HumanMessage(content=prompt_string)]
+        #     response = self.llm.invoke(messages)
+        #     state.design_documents = response.content if hasattr(response, 'content') else str(response)
+        #     return {"design_documents": state.design_documents}
+        # except Exception as e:
+        #     logger.error(f"Error generating design documents: {e}")
+        #     state.design_documents = f"Error generating design documents: {str(e)}"
+        #     return {"design_documents": state.design_documents}
+        state.design_documents = "DUMMY DESIGN DOCUMENT: This is a dummy design document for testing."
+        return {"design_documents": state.design_documents}
+    
+    @log_entry_exit
+    def development_artifact(self, state: State) -> dict:
+        """DUMMY: Generate development artifacts based on design documents (original code commented for testing)."""
+        # logger.info("Generating development artifacts")
+        # if not state.design_documents:
+        #     state.development_artifact = "No design documents generated yet."
+        #     logger.warning("Cannot generate development artifacts without design documents.")
+        #     return {"development_artifact": state.development_artifact}
+        # try:
+        #     prompt_string = f"""Based on the following design documents, generate the development artifacts.\n                            The development artifacts should include:\n                            1. Source code\n                            2. Build scripts\n                            3. Configuration files\n                            4. Deployment instructions\n                            \n                            Design Documents:\n                            {state.design_documents}\n\n                            Development Artifacts:\n                            """"
+        #     messages = [SystemMessage(content="You are an expert software developer."), HumanMessage(content=prompt_string)]
+        #     response = self.llm.invoke(messages)
+        #     state.development_artifact = response.content if hasattr(response, 'content') else str(response)
+        #     return {"development_artifact": state.development_artifact}
+        # except Exception as e:
+        #     logger.error(f"Error generating development artifacts: {e}")
+        #     state.development_artifact = f"Error generating development artifacts: {str(e)}"
+        #     return {"development_artifact": state.development_artifact}
+        state.development_artifact = "DUMMY DEVELOPMENT ARTIFACT: This is a dummy development artifact for testing."
+        return {"development_artifact": state.development_artifact}
+    
+    @log_entry_exit
+    def testing_artifact(self, state: State) -> dict:
+        """DUMMY: Generate testing artifacts based on development artifacts (original code commented for testing)."""
+        # logger.info("Generating testing artifacts")
+        # if not state.development_artifact:
+        #     state.testing_artifact = "No development artifacts generated yet."
+        #     logger.warning("Cannot generate testing artifacts without development artifacts.")
+        #     return {"testing_artifact": state.testing_artifact}
+        # try:
+        #     prompt_string = f"""Based on the following development artifacts, generate the testing artifacts.\n
+        #                       The testing artifacts should include:\n                            
+        #                                                               1. Test cases\n
+        #                                                               2. Test scripts\n
+        #                                                               3. Test data\n
+        #                                                               4. Test plans\n
+        #    \n                            Development Artifacts:\n                            {state.development_artifact}\n\n                            Testing Artifacts:\n                            """"
+        #     messages = [SystemMessage(content="You are an expert software tester."), HumanMessage(content=prompt_string)]
+        #     response = self.llm.invoke(messages)
+        #     state.testing_artifact = response.content if hasattr(response, 'content') else str(response)
+        #     return {"testing_artifact": state.testing_artifact}
+        # except Exception as e:
+        #     logger.error(f"Error generating testing artifacts: {e}")
+        #     state.testing_artifact = f"Error generating testing artifacts: {str(e)}"
+        #     return {"testing_artifact": state.testing_artifact}
+        state.testing_artifact = "DUMMY TESTING ARTIFACT: This is a dummy testing artifact for testing."
+        return {"testing_artifact": state.testing_artifact}
+    
+    @log_entry_exit
+    def deployment_artifact(self, state: State) -> dict:
+        """DUMMY: Generate deployment artifacts based on testing artifacts (original code commented for testing)."""
+        # logger.info("Generating deployment artifacts")
+        # if not state.testing_artifact:
+        #     state.deployment_artifact = "No testing artifacts generated yet."
+        #     logger.warning("Cannot generate deployment artifacts without testing artifacts.")
+        #     return {"deployment_artifact": state.deployment_artifact}
+        # try:
+        #     prompt_string = f"""Based on the following testing artifacts, generate the deployment artifacts.\n                            The deployment artifacts should include:\n                            1. Deployment scripts\n                            2. Configuration files\n                            3. User manuals\n                            \n                            Testing Artifacts:\n                            {state.testing_artifact}\n\n                            Deployment Artifacts:\n                            """"
+        #     messages = [SystemMessage(content="You are an expert software deployer."), HumanMessage(content=prompt_string)]
+        #     response = self.llm.invoke(messages)
+        #     state.deployment_artifact = response.content if hasattr(response, 'content') else str(response)
+        #     return {"deployment_artifact": state.deployment_artifact}
+        # except Exception as e:
+        #     logger.error(f"Error generating deployment artifacts: {e}")
+        #     state.deployment_artifact = f"Error generating deployment artifacts: {str(e)}"
+        #     return {"deployment_artifact": state.deployment_artifact}
+        state.deployment_artifact = "DUMMY DEPLOYMENT ARTIFACT: This is a dummy deployment artifact for testing."
+        return {"deployment_artifact": state.deployment_artifact}   
+
+    
+    @log_entry_exit
     def process_feedback(self, state: State) -> dict:
         """
         Process user feedback passed via state and update state with decision.
@@ -177,15 +268,4 @@ class SdlcNode:
             logger.info(f"--- Exiting feedback_route (routing: reject) ---")
             return "reject"
 
-    def update_checkpoint_state(self, checkpoint_state, feedback_data):
-        if checkpoint_state is not None:
-            if isinstance(checkpoint_state, dict):
-                if feedback_data:
-                    checkpoint_state["feedback"] = feedback_data
-                    if "channel_values" in checkpoint_state and isinstance(checkpoint_state["channel_values"], dict):
-                        checkpoint_state["channel_values"]["feedback"] = feedback_data
 
-            else:
-                setattr(checkpoint_state, "feedback", feedback_data)
-        else:
-            checkpoint_state = {"feedback": feedback_data}
