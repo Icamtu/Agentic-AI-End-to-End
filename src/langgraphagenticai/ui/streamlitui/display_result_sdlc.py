@@ -118,8 +118,9 @@ class DisplaySdlcResult:
     def _display_planning_artifacts(self):
         """Displays generated planning artifacts and the feedback form."""
         st.subheader("Planning Artifacts")
-        requirements_exist = st.session_state.get("requirements_generated")
-        stories_exist = st.session_state.get("user_stories_generated")
+        requirements_exist = st.session_state.get("requirements_generated",False)
+        stories_exist = st.session_state.get("user_stories_generated",False)
+        graph_completed = st.session_state.get("graph_completed", False)
 
         if "feedback" not in st.session_state or st.session_state["feedback"] is None:
             st.session_state["feedback"] = {}
@@ -134,12 +135,14 @@ class DisplaySdlcResult:
             st.info("Requirements will be displayed here after generation.")
 
         if stories_exist:
-            with st.expander("Generated User Stories", expanded=False):
-                st.markdown(st.session_state["generated_user_stories"])
-                if st.button("Save User Stories", key="save_user_stories_planning"):
-                    self._save_artifact(st.session_state["generated_user_stories"], "user_stories.txt")
+            expander_label = "Approved User Stories" if graph_completed else "Generated User Stories"
+            with st.expander(expander_label, expanded=False):
+                story_content = st.session_state.get("generated_user_stories", "Error: User stories flag set but no content found.")
+                st.markdown(story_content)
+                if story_content and st.button("Save User Stories", key="save_user_stories_planning"):
+                    self._save_artifact(story_content, "user_stories.txt")
 
-            if not st.session_state.get("graph_completed"):
+            if not graph_completed:
                 st.markdown("### Feedback on User Stories")
                 decision_options = ("Approve", "Reject")
                 selected_decision = st.radio(
@@ -182,9 +185,9 @@ class DisplaySdlcResult:
             else:
                 st.success("✅ User stories approved. Planning phase completed.")
                 st.markdown("The feedback form is disabled as the workflow is complete.")
-        elif requirements_exist and not stories_exist:
+        elif requirements_exist and not stories_exist and not graph_completed:
             st.info("User stories will be displayed here after generation or if awaiting regeneration after feedback.")
-        elif not requirements_exist and not stories_exist:
+        elif not requirements_exist and not stories_exist and not graph_completed:
             st.info("No artifacts generated yet in the Planning phase.")
 
     @log_entry_exit
@@ -205,16 +208,10 @@ class DisplaySdlcResult:
 
             update_payload = {} # Dictionary for state updates
 
-            # --- Prepare Update Payload ---
-            # No need to retrieve the full checkpoint here, just prepare the update data
+           
             try:
                 if feedback_data:
                     update_payload['feedback'] = feedback_data
-                    # Determine feedback decision based *only* on feedback_data from session state
-                    # We might need the current_stage, ideally from graph state if possible,
-                    # but since we can't easily get it without loading checkpoint,
-                    # we might rely on session_state or assume 'planning' for this specific interrupt.
-                    # Let's assume current_stage is 'planning' as that's where interrupt happens
                     current_stage_value = 'planning' # TODO: Make this more robust if interrupts happen elsewhere
 
                     if isinstance(feedback_data, dict) and current_stage_value in feedback_data:
@@ -242,7 +239,7 @@ class DisplaySdlcResult:
             # --- Update State using graph.update_state() ---
             if update_payload:
                 try:
-                    # Use graph.update_state to modify only specific fields
+                    logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
                     self.graph.update_state(
                         config=self.config, # Pass the main config containing thread_id
                         values=update_payload # Pass only the fields to update
@@ -256,7 +253,7 @@ class DisplaySdlcResult:
                     return
             else:
                 logger.warning("No update payload generated, skipping state update.")
-                # Potentially stop here if an update was expected
+               
                 st.session_state["needs_resume_after_feedback"] = False
                 st.session_state["graph_running"] = False
                 return
@@ -306,10 +303,10 @@ class DisplaySdlcResult:
 
                 if final_feedback_decision == "accept":
                     st.session_state["graph_completed"] = True
-                    st.session_state["user_stories_generated"] = False # Phase complete
+                    # st.session_state["user_stories_generated"] = False # Phase complete
                     logger.info("Graph completed based on 'accept' feedback decision in final state.")
                 else:
-                    st.session_state["user_stories_generated"] = final_state.get("user_stories") is not None
+                    # st.session_state["user_stories_generated"] = final_state.get("user_stories") is not None
                     st.session_state["graph_completed"] = False
                     logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
 
