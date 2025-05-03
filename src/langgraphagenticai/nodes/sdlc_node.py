@@ -180,9 +180,11 @@ class SdlcNode:
     def update_checkpoint_state(self, checkpoint_state, feedback_data):
         if checkpoint_state is not None:
             if isinstance(checkpoint_state, dict):
-                if "channel_values" in checkpoint_state and isinstance(checkpoint_state["channel_values"], dict):
-                    checkpoint_state["channel_values"]["feedback"] = feedback_data
-                checkpoint_state["feedback"] = feedback_data  # <-- add this line
+                if feedback_data:
+                    checkpoint_state["feedback"] = feedback_data
+                    if "channel_values" in checkpoint_state and isinstance(checkpoint_state["channel_values"], dict):
+                        checkpoint_state["channel_values"]["feedback"] = feedback_data
+
             else:
                 setattr(checkpoint_state, "feedback", feedback_data)
         else:

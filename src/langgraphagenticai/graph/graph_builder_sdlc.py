@@ -15,7 +15,7 @@ from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 class SdlcGraphBuilder:
     def __init__(self, llm, memory: MemorySaver=None):
         self.llm = llm
-        self.memory = MemorySaver()
+        self.memory = memory if memory is not None else MemorySaver()
 
     @log_entry_exit
     def build_graph(self):

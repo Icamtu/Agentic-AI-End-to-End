@@ -12,6 +12,8 @@ from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 import os
 from langgraph.graph import END
 from langgraph.types import Command
+from src.langgraphagenticai.state.state import SDLCState
+from src.langgraphagenticai.ui.uiconfigfile import Config
 
 exclude_keys = ["api_key", "OPENAI_API_KEY","GOOGLE_API_KEY","TAVILY_API_KEY","GROQ_API_KEY","state"]
 safe_state = {k: v for k, v in st.session_state.items() if k not in exclude_keys}
@@ -236,16 +238,33 @@ class DisplaySdlcResult:
 
         logger.info(f"Reconstructed resume_state: %s", resume_state)
 
+        # ✅ Parse resume_state into proper SDLCState
+        resume_state_obj = SDLCState(**resume_state)
+
+        logger.info(f"Resume state object created: %s", resume_state_obj)
+        logger.info(f"Resume state object type: %s", type(resume_state_obj))
+
         # Initialize requirements, user_stories, and graph_completed_flag
         requirements = None
         user_stories = None
         graph_completed_flag = False
-        final_state = {}  # To hold the final state after graph execution
+        final_state = {}  
+
+        # Inject new state into checkpointer
+        if hasattr(self.graph, "checkpointer") and self.graph.checkpointer:
+            self.graph.checkpointer.put(
+                config={"configurable": {"thread_id": thread_id}},
+                checkpoint=resume_state_obj,
+                metadata={},  # Provide metadata (can be an empty dictionary)
+                new_versions={} # Provide new_versions (can be an empty dictionary)
+            )
+            logger.info(f"✅ Injected resume_state_obj into checkpointer with thread_id {thread_id}")
+
 
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
                 # Resume the graph using Command(resume=...) with the reconstructed resume_state
-                for event in self.graph.stream(Command(resume=resume_state), config=self.config):
+                for event in self.graph.stream(Command(resume=resume_state_obj), config=self.config):
                     logger.info(f"Resume Event: %s", json.dumps(event, default=str))
                     for node, state in event.items():
                         if state is None:
@@ -276,6 +295,10 @@ class DisplaySdlcResult:
         if feedback_data:
             final_state["feedback"] = feedback_data
             logger.info(f"WORKAROUND: Updated final_state with feedback: {feedback_data}")
+        
+        logger.info(f"Final state after resumption: {final_state}")
+        logger.info(f"Final feedback value: {final_state.get('feedback')}")
+
 
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
