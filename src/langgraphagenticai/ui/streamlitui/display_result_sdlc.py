@@ -189,126 +189,187 @@ class DisplaySdlcResult:
 
     @log_entry_exit
     def _resume_sdlc_graph(self):
-        """Resumes the graph execution from the checkpoint after feedback."""
-        logger.info("Resuming SDLC graph execution...")
-        logger.info("Session state before resumption: %s", "st.session_state")
-        feedback_data = st.session_state.get("feedback")
-        logger.info(f"Feedback data: %s", feedback_data)
+            """Resumes the graph execution from the checkpoint after feedback."""
+            logger.info("Resuming SDLC graph execution...")
+            feedback_data = st.session_state.get("feedback")
+            logger.info(f"Feedback data from session state: %s", feedback_data)
 
-        thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
-        checkpoint = None
-        checkpoint_state = None
-
-        if hasattr(self.graph, 'checkpointer'):
-            checkpoint_tuple = self.graph.checkpointer.get_tuple({"configurable": {"thread_id": thread_id}})
-            if checkpoint_tuple:
-                checkpoint = checkpoint_tuple.checkpoint
-                logger.info(f"Checkpoint retrieved: %s", "checkpoint")
-                checkpoint_state = checkpoint.copy() if hasattr(checkpoint, 'copy') else dict(checkpoint)
-            else:
-                logger.error("No checkpoint found for thread_id: %s", thread_id)
-                st.error("No valid checkpoint found. Please restart the workflow.")
+            thread_id = self.config.get("configurable", {}).get("thread_id", "N/A")
+            if thread_id == "N/A":
+                logger.error("Thread ID is 'N/A'. Cannot resume.")
+                st.error("Cannot resume workflow: Session thread ID is missing.")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
                 return
-        else:
-            logger.error("Graph checkpointer not available.")
-            st.error("Graph configuration error. Please restart the workflow.")
-            return
 
-        logger.info(f"Checkpoint state before resumption: %s", checkpoint_state)
+            checkpoint = None
+            checkpoint_state_tuple = None
+            modified_checkpoint = None
 
-        # Reconstruct resume_state, ensuring 'feedback' is at the top level
-        resume_state = {
-            "session_id": checkpoint_state.get("channel_values", {}).get("session_id"),
-            "current_stage": checkpoint_state.get("channel_values", {}).get("current_stage", "planning"),
-            "project_name": checkpoint_state.get("channel_values", {}).get("project_name"),
-            "project_description": checkpoint_state.get("channel_values", {}).get("project_description"),
-            "project_goals": checkpoint_state.get("channel_values", {}).get("project_goals"),
-            "project_scope": checkpoint_state.get("channel_values", {}).get("project_scope"),
-            "project_objectives": checkpoint_state.get("channel_values", {}).get("project_objectives"),
-            "feedback": checkpoint_state.get("channel_values", {}).get("feedback", {}),
-            "feedback_decision": checkpoint_state.get("channel_values", {}).get("feedback_decision"),
-            "created_at": checkpoint_state.get("channel_values", {}).get("created_at", datetime.now().isoformat()),
-            "last_updated": checkpoint_state.get("channel_values", {}).get("last_updated", datetime.now().isoformat()),
-            "history": checkpoint_state.get("channel_values", {}).get("history", [])
-        }
+            # --- Retrieve and Modify Checkpoint ---
+            if hasattr(self.graph, 'checkpointer') and self.graph.checkpointer:
+                try:
+                    # Ensure thread_id is passed for retrieval
+                    retrieval_config = {"configurable": {"thread_id": thread_id}}
+                    checkpoint_state_tuple = self.graph.checkpointer.get_tuple(retrieval_config)
+                    if checkpoint_state_tuple:
+                        checkpoint = checkpoint_state_tuple.checkpoint
+                        if not isinstance(checkpoint, dict):
+                            if hasattr(checkpoint, 'model_dump'):
+                                checkpoint = checkpoint.model_dump()
+                            elif hasattr(checkpoint, 'dict'):
+                                checkpoint = checkpoint.dict()
+                            else:
+                                logger.error("Checkpoint retrieved is not a dictionary and cannot be converted.")
+                                st.error("Checkpoint format error. Cannot resume. Please restart the workflow.")
+                                st.session_state["needs_resume_after_feedback"] = False
+                                st.session_state["graph_running"] = False
+                                return
 
-        # Override with st.session_state feedback
-        if feedback_data:
-            resume_state["feedback"] = feedback_data
+                        modified_checkpoint = checkpoint.copy()
+                        logger.info(f"Original Checkpoint retrieved and copied.")
 
-        logger.info(f"Reconstructed resume_state: %s", resume_state)
+                        if 'channel_values' not in modified_checkpoint or not isinstance(modified_checkpoint.get('channel_values'), dict):
+                            modified_checkpoint['channel_values'] = {}
+                            logger.warning("Initialized missing 'channel_values' in checkpoint.")
 
-        # ✅ Parse resume_state into proper SDLCState
-        resume_state_obj = SDLCState(**resume_state)
+                        if feedback_data:
+                            modified_checkpoint['channel_values']['feedback'] = feedback_data
+                            current_stage_value = modified_checkpoint['channel_values'].get('current_stage', 'planning') # Default if missing
+                            # Determine feedback decision based *only* on feedback_data from session state
+                            if isinstance(feedback_data, dict) and current_stage_value in feedback_data:
+                                last_feedback = feedback_data[current_stage_value][-1].strip().lower() if feedback_data[current_stage_value] else ""
+                                modified_checkpoint['channel_values']['feedback_decision'] = "accept" if last_feedback == "accept" else "reject"
+                            else:
+                                # Should ideally not happen if feedback_data caused the resume, but default safely
+                                modified_checkpoint['channel_values']['feedback_decision'] = "reject"
+                            logger.info(f"Updated feedback and feedback_decision in modified_checkpoint based on session state feedback.")
 
-        logger.info(f"Resume state object created: %s", resume_state_obj)
-        logger.info(f"Resume state object type: %s", type(resume_state_obj))
+                        modified_checkpoint['channel_values']['last_updated'] = datetime.now().isoformat()
 
-        # Initialize requirements, user_stories, and graph_completed_flag
-        requirements = None
-        user_stories = None
-        graph_completed_flag = False
-        final_state = {}  
+                    else:
+                        logger.error("No checkpoint found for thread_id: %s", thread_id)
+                        st.error("No valid checkpoint found to resume from. Please restart the workflow.")
+                        st.session_state["needs_resume_after_feedback"] = False
+                        st.session_state["graph_running"] = False
+                        return
 
-        # Inject new state into checkpointer
-        if hasattr(self.graph, "checkpointer") and self.graph.checkpointer:
-            self.graph.checkpointer.put(
-                config={"configurable": {"thread_id": thread_id}},
-                checkpoint=resume_state_obj,
-                metadata={},  # Provide metadata (can be an empty dictionary)
-                new_versions={} # Provide new_versions (can be an empty dictionary)
-            )
-            logger.info(f"✅ Injected resume_state_obj into checkpointer with thread_id {thread_id}")
+                except Exception as e:
+                    logger.error(f"Error retrieving or modifying checkpoint for thread_id {thread_id}: {e}", exc_info=True)
+                    st.error(f"Error accessing workflow state: {e}. Please restart.")
+                    st.session_state["needs_resume_after_feedback"] = False
+                    st.session_state["graph_running"] = False
+                    return
+            else:
+                logger.error("Graph checkpointer not available.")
+                st.error("Graph configuration error. Cannot resume workflow. Please restart.")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                return
 
+            # --- Put Updated Checkpoint ---
+            if modified_checkpoint is not None:
+                try:
+                    put_config = {
+                        "configurable": {
+                            "thread_id": thread_id,
+                            "checkpoint_ns": "" # Add the expected namespace key
+                        }
+                    }
+                    self.graph.checkpointer.put(
+                        config=put_config,
+                        checkpoint=modified_checkpoint,
+                        metadata=checkpoint_state_tuple.metadata if checkpoint_state_tuple else {},
+                        new_versions={}
+                    )
+                    # FIX 1: Removed emoji from log message
+                    logger.info(f"[OK] Injected modified_checkpoint into checkpointer with thread_id {thread_id}")
+                except KeyError as ke:
+                    logger.error(f"KeyError putting updated checkpoint for thread_id {thread_id}: {ke}. Check config structure.", exc_info=True)
+                    st.error(f"Configuration error saving workflow state: Missing key '{ke}'. Please restart.")
+                    st.session_state["needs_resume_after_feedback"] = False
+                    st.session_state["graph_running"] = False
+                    return
+                except Exception as e:
+                    logger.error(f"Error putting updated checkpoint for thread_id {thread_id}: {e}", exc_info=True)
+                    st.error(f"Error saving updated workflow state: {e}. Please restart.")
+                    st.session_state["needs_resume_after_feedback"] = False
+                    st.session_state["graph_running"] = False
+                    return
+            else:
+                logger.error("Failed to prepare modified checkpoint. Cannot proceed with put.")
+                st.error("Internal error preparing workflow state. Please restart.")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                return
 
-        with st.spinner("Processing feedback and continuing workflow..."):
-            try:
-                # Resume the graph using Command(resume=...) with the reconstructed resume_state
-                for event in self.graph.stream(Command(resume=resume_state_obj), config=self.config):
-                    logger.info(f"Resume Event: %s", json.dumps(event, default=str))
-                    for node, state in event.items():
-                        if state is None:
-                            logger.info(f"Node '{node}' has null state, skipping.")
-                            continue
+            # --- Resume Graph Execution ---
+            requirements = st.session_state.get("generated_requirements")
+            user_stories = st.session_state.get("generated_user_stories")
+            graph_completed_flag = st.session_state.get("graph_completed", False)
+
+            with st.spinner("Processing feedback and continuing workflow..."):
+                try:
+                    final_state = {}
+                    # FIX 2: Use Command(resume=True) to explicitly signal resumption from checkpointer
+                    logger.info("Attempting graph stream with Command(resume=True)")
+                    # Pass the main config, LangGraph uses thread_id from it to interact with checkpointer
+                    for event in self.graph.stream(Command(resume=True), config=self.config, stream_mode="values"):
+                        logger.debug(f"Resume Stream Event: {event}") # Keep debug for detailed tracing if needed
+
+                        # Node name extraction might need adjustment based on actual log structure in events
+                        node = event.get("log", {}).get("actions", [{}])[0].get("node")
+                        state = event
+
                         if not isinstance(state, dict):
-                            logger.warning(f"Node '{node}' state is not a dict: {type(state)}. Skipping state processing.")
+                            logger.warning(f"Received non-dict state in stream: {type(state)}. Skipping.")
                             continue
-                        logger.info(f"Node '{node}' updated state: %s", state)
-                        final_state.update(state)  # Capture the latest state
-                        if "generated_requirements" in state:
+
+                        logger.info(f"Node '{node}' updated state.")
+                        final_state.update(state) # Aggregate the latest state view
+
+                        # Update session state directly from the received state
+                        if "generated_requirements" in state and state["generated_requirements"] is not None:
+                            st.session_state["generated_requirements"] = state["generated_requirements"]
+                            st.session_state["requirements_generated"] = True
                             requirements = state["generated_requirements"]
-                        if "user_stories" in state:
+                        if "user_stories" in state and state["user_stories"] is not None:
+                            st.session_state["generated_user_stories"] = state["user_stories"]
+                            # Keep generated true for now; completion logic below handles final state
+                            st.session_state["user_stories_generated"] = True
                             user_stories = state["user_stories"]
                         if "feedback_decision" in state:
-                            logger.info("Feedback decision: %s", state["feedback_decision"])
-                        if node == END or node == "__end__" or state.get("next_node") == END:
-                            logger.info("Graph reached END node")
-                            graph_completed_flag = True
-                        if node == "__interrupt__":
-                            logger.info("Graph interrupted for feedback processing")
-            except Exception as e:
-                logger.error(f"Error during graph stream: {e}", exc_info=True)
-                st.error(f"An error occurred during graph resumption: {e}")
-                return
+                            # Log the decision received by the graph node execution
+                            logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
 
-        # WORKAROUND: Explicitly update state after graph execution
-        if feedback_data:
-            final_state["feedback"] = feedback_data
-            logger.info(f"WORKAROUND: Updated final_state with feedback: {feedback_data}")
-        
-        logger.info(f"Final state after resumption: {final_state}")
-        logger.info(f"Final feedback value: {final_state.get('feedback')}")
+                except Exception as e:
+                    logger.error(f"Error during graph stream after put/resume: {e}", exc_info=True)
+                    st.error(f"An error occurred during workflow resumption: {e}")
+                    st.session_state["graph_running"] = False
+                    return # Stop execution here
+
+                # --- Post-Stream State Update ---
+                # Use the aggregated final_state from the stream to make the completion decision
+                final_feedback_decision = final_state.get("feedback_decision")
+                logger.info(f"Final feedback decision after stream: {final_feedback_decision}")
+
+                if final_feedback_decision == "accept":
+                    graph_completed_flag = True
+                    st.session_state["graph_completed"] = True
+                    st.session_state["user_stories_generated"] = False # Phase complete
+                    logger.info("Graph completed based on 'accept' feedback decision in final state.")
+                else:
+                    # Ensure flags reflect non-completion
+                    st.session_state["user_stories_generated"] = user_stories is not None # Keep showing if generated
+                    st.session_state["graph_completed"] = False
+                    logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
 
 
-        st.session_state["generated_requirements"] = requirements
-        st.session_state["generated_user_stories"] = user_stories
-        st.session_state["requirements_generated"] = requirements is not None
-        st.session_state["user_stories_generated"] = user_stories is not None and not graph_completed_flag
-        st.session_state["graph_completed"] = graph_completed_flag
-        st.session_state["needs_resume_after_feedback"] = False
-        logger.info("Graph resumption completed. Graph completed: %s", graph_completed_flag)
-        logger.info("Session state after resumption: %s", "st.session_state")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                logger.info("Graph resumption stream processing completed. Graph completed flag: %s", st.session_state.get('graph_completed', False))
 
+                st.rerun()
 
     @log_entry_exit
     def _display_design_phase(self):
