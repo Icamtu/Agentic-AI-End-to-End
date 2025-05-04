@@ -259,7 +259,7 @@ class SdlcNode:
         logger.info(f"Feedback decision read from state object: {feedback_decision}")
 
         if feedback_decision == "accept":
-            logger.info("Feedback accepted. Routing to END.")
+            logger.info("Feedback accepted. Routing to next stage.")
             logger.info(f"--- Exiting feedback_route (routing: accept) ---")
             return "accept"
         else:

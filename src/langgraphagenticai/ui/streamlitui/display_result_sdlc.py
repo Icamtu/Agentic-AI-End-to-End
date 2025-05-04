@@ -43,9 +43,13 @@ class DisplaySdlcResult:
             "user_stories_generated": False,
             "generated_requirements": None,
             "generated_user_stories": None,
+            "generated_design_documents": None,
+            "generated_development_artifact": None,
+            "generated_testing_artifact": None,
+            "generated_deployment_artifact": None,
             "feedback": None,
             "needs_resume_after_feedback": False,
-            "graph_completed": False,
+            "user_stories_approved": False,
             "graph_running": False,
             "feedback_pending": False,
         }
@@ -88,7 +92,7 @@ class DisplaySdlcResult:
         with tabs[3]: self._display_testing_phase(); self._display_testing_artifacts()
         with tabs[4]: self._display_deployment_phase(); self._display_deployment_artifacts()
 
-        if st.session_state.get("graph_completed"):
+        if st.session_state.get("user_stories_approved"):
             st.success("✅ SDLC Planning Phase Completed Successfully!")
             st.markdown("You can restart the workflow or review the artifacts.")
 
@@ -120,7 +124,7 @@ class DisplaySdlcResult:
         st.subheader("Planning Artifacts")
         requirements_exist = st.session_state.get("requirements_generated",False)
         stories_exist = st.session_state.get("user_stories_generated",False)
-        graph_completed = st.session_state.get("graph_completed", False)
+        user_stories_approved = st.session_state.get("user_stories_approved", False)
 
         if "feedback" not in st.session_state or st.session_state["feedback"] is None:
             st.session_state["feedback"] = {}
@@ -135,14 +139,14 @@ class DisplaySdlcResult:
             st.info("Requirements will be displayed here after generation.")
 
         if stories_exist:
-            expander_label = "Approved User Stories" if graph_completed else "Generated User Stories"
+            expander_label = "Approved User Stories" if user_stories_approved else "Generated User Stories"
             with st.expander(expander_label, expanded=False):
                 story_content = st.session_state.get("generated_user_stories", "Error: User stories flag set but no content found.")
                 st.markdown(story_content)
                 if story_content and st.button("Save User Stories", key="save_user_stories_planning"):
                     self._save_artifact(story_content, "user_stories.txt")
 
-            if not graph_completed:
+            if not user_stories_approved:
                 st.markdown("### Feedback on User Stories")
                 decision_options = ("Approve", "Reject")
                 selected_decision = st.radio(
@@ -185,149 +189,80 @@ class DisplaySdlcResult:
             else:
                 st.success("✅ User stories approved. Planning phase completed.")
                 st.markdown("The feedback form is disabled as the workflow is complete.")
-        elif requirements_exist and not stories_exist and not graph_completed:
+        elif requirements_exist and not stories_exist and not user_stories_approved:
             st.info("User stories will be displayed here after generation or if awaiting regeneration after feedback.")
-        elif not requirements_exist and not stories_exist and not graph_completed:
+        elif not requirements_exist and not stories_exist and not user_stories_approved:
             st.info("No artifacts generated yet in the Planning phase.")
 
-    @log_entry_exit
-    def _resume_sdlc_graph(self):
-            """Resumes the graph execution from the checkpoint after feedback."""
-            logger.info("Resuming SDLC graph execution...")
-            feedback_data = st.session_state.get("feedback")
-            logger.info(f"Feedback data from session state: %s", feedback_data)
-
-            # Ensure config has thread_id
-            if "configurable" not in self.config or "thread_id" not in self.config["configurable"]:
-                logger.error("Thread ID missing in main config. Cannot resume.")
-                st.error("Cannot resume workflow: Session thread ID is missing in configuration.")
-                st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
-                return
-            thread_id = self.config["configurable"]["thread_id"] # Get thread_id from main config
-
-            update_payload = {} # Dictionary for state updates
-
-           
-            try:
-                if feedback_data:
-                    update_payload['feedback'] = feedback_data
-                    current_stage_value = 'planning' # TODO: Make this more robust if interrupts happen elsewhere
-
-                    if isinstance(feedback_data, dict) and current_stage_value in feedback_data:
-                        last_feedback = feedback_data[current_stage_value][-1].strip().lower() if feedback_data[current_stage_value] else ""
-                        update_payload['feedback_decision'] = "accept" if last_feedback == "accept" else "reject"
-                    else:
-                        update_payload['feedback_decision'] = "reject" # Default safely
-                    logger.info(f"Update payload prepared: {update_payload}")
-                else:
-                    # If no feedback data, we probably shouldn't be resuming this way
-                    logger.warning("Resume triggered but no feedback data found in session state.")
-                    # Decide how to handle this: maybe default to reject or raise error?
-                    update_payload['feedback_decision'] = "reject" # Defaulting to reject if no feedback
-
-                # We can also add/update 'last_updated' timestamp if desired
-                update_payload['last_updated'] = datetime.now().isoformat()
-
-            except Exception as e:
-                logger.error(f"Error preparing update payload for thread_id {thread_id}: {e}", exc_info=True)
-                st.error(f"Error preparing resume data: {e}. Please restart.")
-                st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
-                return
-
-            # --- Update State using graph.update_state() ---
-            if update_payload:
-                try:
-                    logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
-                    self.graph.update_state(
-                        config=self.config, # Pass the main config containing thread_id
-                        values=update_payload # Pass only the fields to update
-                    )
-                    logger.info(f"[OK] Updated graph state for thread_id {thread_id} with payload: {update_payload}")
-                except Exception as e:
-                    logger.error(f"Error calling graph.update_state for thread_id {thread_id}: {e}", exc_info=True)
-                    st.error(f"Error updating workflow state: {e}. Please restart.")
-                    st.session_state["needs_resume_after_feedback"] = False
-                    st.session_state["graph_running"] = False
-                    return
-            else:
-                logger.warning("No update payload generated, skipping state update.")
-               
-                st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
-                return
-
-
-            # --- Resume Graph Execution using Command(resume=True) ---
-            with st.spinner("Processing feedback and continuing workflow..."):
-                try:
-                    final_state = {}
-                    # Revert to using Command(resume=True)
-                    logger.info("Attempting graph stream with Command(resume=True)")
-                    for event in self.graph.stream(Command(resume=True), config=self.config, stream_mode="values"):
-                        logger.debug(f"Resume Stream Event: {event}")
-
-                        node = event.get("log", {}).get("actions", [{}])[0].get("node")
-                        state = event
-
-                        if not isinstance(state, dict):
-                            logger.warning(f"Received non-dict state in stream: {type(state)}. Skipping.")
-                            continue
-
-                        # Log entry into graph nodes if structure allows
-                        if node: logger.info(f"Executing node: {node}")
-
-                        logger.info(f"Node '{node}' generated state update.") # Log less verbosely
-                        final_state.update(state) # Aggregate the latest state view
-
-                        # Update session state based on the received state from the graph execution
-                        if "generated_requirements" in state and state["generated_requirements"] is not None:
-                            st.session_state["generated_requirements"] = state["generated_requirements"]
-                            st.session_state["requirements_generated"] = True
-                        if "user_stories" in state and state["user_stories"] is not None:
-                            st.session_state["generated_user_stories"] = state["user_stories"]
-                            st.session_state["user_stories_generated"] = True
-                        if "feedback_decision" in state:
-                            logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
-
-                except Exception as e:
-                    logger.error(f"Error during graph stream after update_state/resume: {e}", exc_info=True)
-                    st.error(f"An error occurred during workflow resumption: {e}")
-                    st.session_state["graph_running"] = False
-                    return # Stop execution here
-
-                # --- Post-Stream State Update ---
-                final_feedback_decision = final_state.get("feedback_decision")
-                logger.info(f"Final feedback decision after stream: {final_feedback_decision}")
-
-                if final_feedback_decision == "accept":
-                    st.session_state["graph_completed"] = True
-                    # st.session_state["user_stories_generated"] = False # Phase complete
-                    logger.info("Graph completed based on 'accept' feedback decision in final state.")
-                else:
-                    # st.session_state["user_stories_generated"] = final_state.get("user_stories") is not None
-                    st.session_state["graph_completed"] = False
-                    logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
-
-                st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
-                logger.info("Graph resumption stream processing completed. Graph completed flag: %s", st.session_state.get('graph_completed', False))
-
-                st.rerun()
-
-
+   
 
     @log_entry_exit
     def _display_design_phase(self):
-        # st.header("Design Phase")
-        # st.info("Design phase details will be displayed here in future implementations.")
-        pass
+        """Displays the design phase details."""
+        st.header("Design Phase")
+      
+        
     @log_entry_exit
     def _display_design_artifacts(self):
-        # st.subheader("Design Artifacts")
-        # st.info("Design artifacts (e.g., architecture diagrams, UI mockups) will be displayed here.")
-        pass
+        """Displays design artifacts."""
+        st.subheader("Design Artifacts")
+        logger.info(f"Approved user stories in session state: %s", st.session_state.get("design_documents", None))
+        design_artifacts_exist = st.session_state.get("generated_design_documents",False)
+        design_documents_approved = st.session_state.get("design_documents_approved", False)
+        
+        if design_artifacts_exist:
+            expander_design_label = "Approved Design Artifacts" if design_documents_approved else "Generated User Design Artifacts"
+            with st.expander(expander_design_label, expanded=False):
+                st.markdown(st.session_state["generated_design_documents"])
+                if st.button("Save Design Documents", key="save_design_documents"):
+                    self._save_artifact(st.session_state["generated_design_documents"], "design_documents.txt")
+            
+            if not design_documents_approved:
+                st.markdown("### Feedback on Design Artifacts")
+                decision_options = ("Approve", "Reject")
+                selected_decision = st.radio(
+                    "Review Decision:",
+                    decision_options,
+                    key="design_documents_feedback_decision",
+                    horizontal=True,
+                    index=0
+                )
+                comments = st.text_area(
+                    "Comments (Required for Rejection):",
+                    placeholder="Include more details on the design",
+                    key="design_documents_feedback_comments"
+                )
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("graph_running", False)
+                if st.button("Submit Review", key="submit_review_button", disabled=submit_disabled):
+                    if st.session_state.get("feedback_pending"):
+                        st.warning("Feedback is already being processed. Please wait.")
+                        return
+                    st.session_state["feedback_pending"] = True
+                    if selected_decision == "Reject" and not comments.strip():
+                        st.error("Comments are required when rejecting.")
+                        st.session_state["feedback_pending"] = False
+                    else:
+                        is_approved = (selected_decision == "Approve")
+                        logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        current_stage = "planning"
+                        st.session_state["feedback"] = {
+                            current_stage: ["accept"] if is_approved else [comments.strip()]
+                        }
+                        logger.info("Feedback stored: %s", st.session_state["feedback"])
+                        st.session_state["needs_resume_after_feedback"] = True
+                        if not is_approved:
+                            st.session_state["user_stories_generated"] = False
+                        st.session_state["feedback_pending"] = False
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
+                        st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
+                        st.write("Session state after feedback: %s", st.session_state)
+                        st.rerun()
+            else:
+                st.success("✅ User stories approved. Planning phase completed.")
+                st.markdown("The feedback form is disabled as the workflow is complete.")
+            
+       
+        
 
     @log_entry_exit
     def _display_development_phase(self):
@@ -461,6 +396,158 @@ class DisplaySdlcResult:
         st.session_state["requirements_generated"] = requirements is not None
         st.session_state["user_stories_generated"] = user_stories is not None
         logger.info("Initial graph run finished (interrupted). Artifacts stored in session state.")
+
+
+
+    @log_entry_exit
+    def _resume_sdlc_graph(self):
+            """Resumes the graph execution from the checkpoint after feedback."""
+            logger.info("Resuming SDLC graph execution...")
+            feedback_data = st.session_state.get("feedback")
+            logger.info(f"Feedback data from session state: %s", feedback_data)
+
+            # Ensure config has thread_id
+            if "configurable" not in self.config or "thread_id" not in self.config["configurable"]:
+                logger.error("Thread ID missing in main config. Cannot resume.")
+                st.error("Cannot resume workflow: Session thread ID is missing in configuration.")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                return
+            thread_id = self.config["configurable"]["thread_id"] # Get thread_id from main config
+
+            update_payload = {} # Dictionary for state updates
+
+           
+            try:
+                if feedback_data:
+                    update_payload['feedback'] = feedback_data
+                    current_stage_value = 'planning' # TODO: Make this more robust if interrupts happen elsewhere
+
+                    if isinstance(feedback_data, dict) and current_stage_value in feedback_data:
+                        last_feedback = feedback_data[current_stage_value][-1].strip().lower() if feedback_data[current_stage_value] else ""
+                        update_payload['feedback_decision'] = "accept" if last_feedback == "accept" else "reject"
+                    else:
+                        update_payload['feedback_decision'] = "reject" # Default safely
+                    logger.info(f"Update payload prepared: {update_payload}")
+                else:
+                    # If no feedback data, we probably shouldn't be resuming this way
+                    logger.warning("Resume triggered but no feedback data found in session state.")
+                    # Decide how to handle this: maybe default to reject or raise error?
+                    update_payload['feedback_decision'] = "reject" # Defaulting to reject if no feedback
+
+                # We can also add/update 'last_updated' timestamp if desired
+                update_payload['last_updated'] = datetime.now().isoformat()
+
+            except Exception as e:
+                logger.error(f"Error preparing update payload for thread_id {thread_id}: {e}", exc_info=True)
+                st.error(f"Error preparing resume data: {e}. Please restart.")
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                return
+
+            # --- Update State using graph.update_state() ---
+            if update_payload:
+                try:
+                    logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
+                    self.graph.update_state(
+                        config=self.config, # Pass the main config containing thread_id
+                        values=update_payload # Pass only the fields to update
+                    )
+                    logger.info(f"[OK] Updated graph state for thread_id {thread_id} with payload: {update_payload}")
+                except Exception as e:
+                    logger.error(f"Error calling graph.update_state for thread_id {thread_id}: {e}", exc_info=True)
+                    st.error(f"Error updating workflow state: {e}. Please restart.")
+                    st.session_state["needs_resume_after_feedback"] = False
+                    st.session_state["graph_running"] = False
+                    return
+            else:
+                logger.warning("No update payload generated, skipping state update.")
+               
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                return
+
+
+            # --- Resume Graph Execution using Command(resume=True) ---
+            with st.spinner("Processing feedback and continuing workflow..."):
+                try:
+                    final_state = {}
+                    # Revert to using Command(resume=True)
+                    logger.info("Attempting graph stream with Command(resume=True)")
+                    for event in self.graph.stream(Command(resume=True), config=self.config, stream_mode="values"):
+                        logger.debug(f"Resume Stream Event: {event}")
+
+                        node = event.get("log", {}).get("actions", [{}])[0].get("node")
+                        state = event
+
+                        if not isinstance(state, dict):
+                            logger.warning(f"Received non-dict state in stream: {type(state)}. Skipping.")
+                            continue
+
+                        # Log entry into graph nodes if structure allows
+                        if node: logger.info(f"Executing node: {node}")
+
+                        logger.info(f"Node '{node}' generated state update.") # Log less verbosely
+                        final_state.update(state) # Aggregate the latest state view
+
+                        # Update session state based on the received state from the graph execution
+                        if "generated_requirements" in state and state["generated_requirements"] is not None:
+                            st.session_state["generated_requirements"] = state["generated_requirements"]
+                            st.session_state["requirements_generated"] = True
+                        if "user_stories" in state and state["user_stories"] is not None:
+                            st.session_state["generated_user_stories"] = state["user_stories"]
+                            st.session_state["user_stories_generated"] = True
+                        if "feedback_decision" in state:
+                            logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
+
+                except Exception as e:
+                    logger.error(f"Error during graph stream after update_state/resume: {e}", exc_info=True)
+                    st.error(f"An error occurred during workflow resumption: {e}")
+                    st.session_state["graph_running"] = False
+                    return # Stop execution here
+
+                # --- Post-Stream State Update ---
+                final_feedback_decision = final_state.get("feedback_decision")
+                logger.info(f"Final feedback decision after stream: {final_feedback_decision}")
+
+                if final_feedback_decision == "accept":
+                    if st.session_state["sdlc_stage"] == "planning":
+                        st.session_state["user_stories_approved"] = True
+                        logger.info("User stories approved. Proceeding to next phase.")
+                    elif st.session_state["sdlc_stage"] == "design":
+                        st.session_state["design_documents_approved"] = True
+                        logger.info("Design documents approved. Proceeding to next phase.")
+                    elif st.session_state["sdlc_stage"] == "development":
+                        st.session_state["development_artifact_approved"] = True
+                        logger.info("Development artifact approved. Proceeding to next phase.")
+                    elif st.session_state["sdlc_stage"] == "testing":
+                        st.session_state["testing_artifact_approved"] = True
+                        logger.info("Testing artifact approved. Proceeding to next phase.")
+                    elif st.session_state["sdlc_stage"] == "deployment":
+                        st.session_state["deployment_artifact_approved"] = True
+                        logger.info("Deployment artifact approved. Proceeding to next phase.")
+                    else:
+                        logger.error("Unknown SDLC stage. Cannot proceed.")
+                        st.error("Unknown SDLC stage. Cannot proceed.")
+                        st.session_state["user_stories_approved"] = False
+                        st.session_state["user_stories_generated"] = False
+                        st.session_state["feedback_pending"] = False
+                        st.session_state["needs_resume_after_feedback"] = False
+                        st.session_state["graph_running"] = False
+                        return
+                    
+                    
+                else:
+                    # st.session_state["user_stories_generated"] = final_state.get("user_stories") is not None
+                    st.session_state["user_stories_approved"] = False
+                    logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
+
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["graph_running"] = False
+                logger.info("Graph resumption stream processing completed. Graph completed flag: %s", st.session_state.get('user_stories_approved', False))
+
+                st.rerun()
+
 
     @log_entry_exit
     def _save_artifact(self, content: str, filename: str):

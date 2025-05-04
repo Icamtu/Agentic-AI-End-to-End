@@ -31,6 +31,15 @@ class SdlcGraphBuilder:
             graph_builder.add_node("GenerateRequirements", sldc_node.generate_requirements)
             graph_builder.add_node("GenerateUserStories", sldc_node.generate_user_stories)
             graph_builder.add_node("ProcessFeedback", sldc_node.process_feedback)
+            graph_builder.add_node("DesignDocuments", sldc_node.design_documents)
+            graph_builder.add_node("DesignFeedback", sldc_node.process_feedback)
+            graph_builder.add_node("DevelopmentArtifact", sldc_node.development_artifact)
+            graph_builder.add_node("DevelopmentFeedback", sldc_node.process_feedback)
+            graph_builder.add_node("TestingArtifact", sldc_node.testing_artifact)
+            graph_builder.add_node("TestingFeedback", sldc_node.process_feedback)
+            graph_builder.add_node("DeploymentArtifact", sldc_node.deployment_artifact)
+            graph_builder.add_node("DeploymentFeedback", sldc_node.process_feedback)
+
 
             # Define Edges
             graph_builder.add_edge(START, "Requirement")
@@ -43,14 +52,60 @@ class SdlcGraphBuilder:
                 "ProcessFeedback",
                 sldc_node.feedback_route,
                 {
-                    "accept": END,
+                    "accept": "DesignDocuments",
                     "reject": "GenerateUserStories"
                 }
             )
 
+            graph_builder.add_edge("DesignDocuments", "DesignFeedback")
+
+             # Conditional edge after feedback processing
+            graph_builder.add_conditional_edges(
+                "DesignFeedback",
+                sldc_node.feedback_route,
+                {
+                    "accept": "DevelopmentArtifact",
+                    "reject": "DesignDocuments"
+                }
+            )
+            graph_builder.add_edge("DevelopmentArtifact", "DevelopmentFeedback")
+
+             # Conditional edge after feedback processing
+            graph_builder.add_conditional_edges(
+                "DevelopmentFeedback",
+                sldc_node.feedback_route,
+                {
+                    "accept": "TestingArtifact",
+                    "reject": "DevelopmentArtifact"
+                }
+            )
+            graph_builder.add_edge("TestingArtifact", "TestingFeedback")
+
+             # Conditional edge after feedback processing
+            graph_builder.add_conditional_edges(
+                "TestingFeedback",
+                sldc_node.feedback_route,
+                {
+                    "accept": "DeploymentArtifact",
+                    "reject": "TestingArtifact"
+                }
+            )
+            graph_builder.add_edge("DeploymentArtifact", "DeploymentFeedback")
+            # Conditional edge after feedback processing
+            graph_builder.add_conditional_edges(
+                "DeploymentFeedback",
+                sldc_node.feedback_route,
+                {
+                    "accept": END,
+                    "reject": "DeploymentArtifact"
+                }
+            )
+
+            
+
             # Compile with interrupt
             graph = graph_builder.compile(
-                interrupt_after=["GenerateUserStories"],
+                interrupt_after=["GenerateUserStories", "DesignDocuments", "DevelopmentArtifact", "TestingArtifact", "DeploymentArtifact"],
                 checkpointer=self.memory
             )
             logger.info("Graph compiled with checkpointer: %s", self.memory)
