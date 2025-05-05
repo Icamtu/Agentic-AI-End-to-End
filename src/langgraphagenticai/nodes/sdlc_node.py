@@ -189,51 +189,30 @@ class SdlcNode:
     @log_entry_exit
     def process_feedback(self, state: State) -> dict:
         """
-        Process user feedback passed via state and update state with decision.
+        Process user feedback and update state with decision.
         Only { "current_stage": ["accept"] } ends the process.
         """
         logger.info(f"--- Entering process_feedback ---")
-        logger.info(f"Input state: {state.to_dict() if hasattr(state, 'to_dict') else state}")
-        logger.info(f"State type: {type(state)}")
-       
+        logger.info(f"Input state: {state.to_dict()}")
 
-        
+        current_stage = state.current_stage
+        feedback = state.get_last_feedback_for_stage(current_stage)
 
-        current_stage = state.get("current_stage") if isinstance(state, dict) else state.current_stage
-        raw_feedback = state.get("feedback", {}) if isinstance(state, dict) else getattr(state, "feedback", {})
+        state.add_feedback(current_stage, str(feedback))
 
-        if isinstance(current_stage, str):
-            current_stage_value = current_stage
+        logger.info(f"Processing feedback for stage: {current_stage}")
+        logger.info(f"Feedback received: {feedback}")
+
+        if feedback and feedback.strip().lower() == "accept":
+            logger.info(f"Feedback for stage '{current_stage}' is ACCEPT. Ending flow.")
+            state.feedback_decision = "accept"
         else:
-            current_stage_value = current_stage.value if hasattr(current_stage, "value") else str(current_stage)
-
-        logger.info(f"Processing feedback for stage: {current_stage_value}")
-        logger.info(f"Raw feedback data received in state: {raw_feedback}")
-
-        # Only accept if feedback is {current_stage: ["accept"]}
-        logger.info(f"Checking acceptance: current_stage_value={current_stage_value}, raw_feedback={raw_feedback}")
-        if (
-            isinstance(raw_feedback, dict)
-            and current_stage_value in raw_feedback
-            and isinstance(raw_feedback[current_stage_value], list)
-            and raw_feedback[current_stage_value]
-            and raw_feedback[current_stage_value][-1].strip().lower() == "accept"
-        ):
-            logger.info(f"Feedback for stage '{current_stage_value}' is ACCEPT. Ending flow.")
-            if isinstance(state, dict):
-                state["feedback_decision"] = "accept"
-            else:
-                state.feedback_decision = "accept"
-        else:
-            logger.info(f"Feedback for stage '{current_stage_value}' is not accept. Looping back. Feedback is: {raw_feedback}")
-            if isinstance(state, dict):
-                state["feedback_decision"] = "reject"
-            else:
-                state.feedback_decision = "reject"
+            logger.info(f"Feedback for stage '{current_stage}' is not accept. Looping back. Feedback is: {feedback}")
+            state.feedback_decision = "reject"
 
         return_value = {
-            "feedback_decision": state["feedback_decision"] if isinstance(state, dict) else state.feedback_decision,
-            "feedback": raw_feedback
+            "feedback_decision": state.feedback_decision,
+            "feedback": feedback
         }
         logger.info(f"Returning from process_feedback: {return_value}")
         logger.info(f"--- Exiting process_feedback ---")
@@ -242,34 +221,26 @@ class SdlcNode:
     @log_entry_exit
     def feedback_route(self, state: State) -> str:
         """Routes based on the feedback decision stored in the state."""
-        logger.info(f"--- Entering feedback_route ---")
-        logger.info(f"Routing feedback. Current state includes feedback_decision: {hasattr(state, 'feedback_decision')}")
-        
-        logger.info(f"Full state content received by feedback_route: {state.to_dict() if isinstance(state, State) else state}")
+        logger.info(f"Entering feedback_route with decision: {state.feedback_decision}")
 
         if not isinstance(state, State):
-            logger.error(f"Incorrect state type passed to feedback_route: {type(state)}. Defaulting to reject.")
-            logger.info(f"--- Exiting feedback_route (routing: reject due to type error) ---")
-            
+            logger.error(f"Invalid state type: {type(state)}. Routing to reject.")
             return "reject"
 
-    
-        feedback_decision = state.feedback_decision
-        logger.info(f"Feedback decision read from state object: {feedback_decision}")
-
-        if feedback_decision == "accept":
+        if state.feedback_decision == "accept":
             logger.info("Feedback accepted. Routing to next stage.")
-            logger.info(f"--- Exiting feedback_route (routing: accept) ---")
-            state.feedback_decision = None  # Reset feedback decision after routing
             next_stage = state.get_next_stage()
-            if next_stage is not None:
+            if next_stage:
                 state.update_stage(next_stage)
+                logger.info(f"Updated state to next stage: {next_stage}")
+            else:
+                logger.info("No next stage available. Ending process.")
+                
+            state.clear_feedback_decision()
             return "accept"
         else:
-            
-            logger.info(f"Feedback decision is '{feedback_decision}'. Routing back for revision.")
-            logger.info(f"--- Exiting feedback_route (routing: reject) ---")
-            state.feedback_decision = None  # Reset feedback decision after routing
+            logger.info("Feedback rejected. Routing back for revision.")
+            state.clear_feedback_decision()
             return "reject"
 
 

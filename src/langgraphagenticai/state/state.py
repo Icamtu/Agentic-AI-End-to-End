@@ -119,6 +119,9 @@ class SDLCState(BaseModel):
         """Convert state to dictionary."""
         return self.model_dump()
 
+    def clear_feedback_decision(self):
+        """Clear the feedback decision."""
+        self.feedback_decision = None
     
     def update_stage(self, new_stage: SDLCStages):
         """
