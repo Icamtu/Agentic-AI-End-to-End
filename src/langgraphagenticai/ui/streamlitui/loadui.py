@@ -25,16 +25,16 @@ class LoadStreamlitUI:
         """Initialize session state with default values."""
         
         base_state = {
-            "current_step": "requirements", 
-            "requirements": "", 
-            "user_stories": "",
-            "po_feedback": "", 
-            "generated_code": "", 
-            "review_feedback": "",
-            "decision": None, 
-            "timeframe": "", 
-            "IsFetchButtonClicked": False,
-            "IsSDLC": False,
+            # "current_step": "requirements", 
+            # "requirements": "", 
+            # "user_stories": "",
+            # "po_feedback": "", 
+            # "generated_code": "", 
+            # "review_feedback": "",
+            # "decision": None, 
+            # "timeframe": "", 
+            # "IsFetchButtonClicked": False,
+            # "IsSDLC": False,
             "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY", ""),
             "TAVILY_API_KEY": os.getenv("TAVILY_API_KEY", "")
         }

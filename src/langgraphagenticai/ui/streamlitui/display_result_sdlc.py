@@ -40,7 +40,7 @@ class DisplaySdlcResult:
             "project_scope": "",
             "project_objectives": "",
             "requirements_generated": False,
-            "user_stories_generated": False,
+            "user_stories_generated_flag": False,
             "generated_requirements": None,
             "generated_user_stories": None,
             "generated_design_documents": None,
@@ -50,7 +50,7 @@ class DisplaySdlcResult:
             "feedback": None,
             "needs_resume_after_feedback": False,
             "user_stories_approved": False,
-            "graph_running": False,
+            "planning_stage_running": False,
             "feedback_pending": False,
         }
         for key, value in defaults.items():
@@ -64,18 +64,18 @@ class DisplaySdlcResult:
         st.write(safe_state)
 
         # Prevent concurrent runs
-        if st.session_state.get("graph_running"):
+        if st.session_state.get("planning_stage_running"):
             st.warning("Workflow is already running. Please wait.")
-            logger.warning("Workflow blocked due to graph_running=True")
+            logger.warning("Workflow blocked due to planning_stage_running=True")
             return
 
         # Handle resumption
         if st.session_state.get("needs_resume_after_feedback"):
             logger.info("Detected need to resume graph after feedback.")
-            st.session_state["graph_running"] = True
+            st.session_state["planning_stage_running"] = True
             self._resume_sdlc_graph()
-            st.session_state["graph_running"] = False
-            return  # Avoid further processing to prevent UI conflicts
+            st.session_state["planning_stage_running"] = False
+            return 
 
         # Display UI
         phases = ["Planning", "Design", "Development", "Testing", "Deployment"]
@@ -86,15 +86,22 @@ class DisplaySdlcResult:
             if not st.session_state.get("requirements_generated"):
                 self._display_planning_phase()
             self._display_planning_artifacts()
+            if st.session_state.get("user_stories_approved"):
+                st.session_state["user_stories"]= st.session_state["generated_user_stories"]
+                st.session_state["user_stories_approved"] = True
+                # st.session_state["sdlc_stage"] = "design"
+                st.success("✅ SDLC Planning Phase Completed Successfully!")
+                st.markdown("You can restart the workflow or review the artifacts.")
 
-        with tabs[1]: self._display_design_phase(); self._display_design_artifacts()
+        with tabs[1]:
+            if not st.session_state.get("design_documents_generated"):
+                self._display_design_phase()
+            self._display_design_artifacts()
         with tabs[2]: self._display_development_phase(); self._display_development_artifacts()
         with tabs[3]: self._display_testing_phase(); self._display_testing_artifacts()
         with tabs[4]: self._display_deployment_phase(); self._display_deployment_artifacts()
 
-        if st.session_state.get("user_stories_approved"):
-            st.success("✅ SDLC Planning Phase Completed Successfully!")
-            st.markdown("You can restart the workflow or review the artifacts.")
+        
 
         st.markdown("---")
         if st.button("Restart SDLC Workflow", key="restart_button"):
@@ -123,7 +130,7 @@ class DisplaySdlcResult:
         """Displays generated planning artifacts and the feedback form."""
         st.subheader("Planning Artifacts")
         requirements_exist = st.session_state.get("requirements_generated",False)
-        stories_exist = st.session_state.get("user_stories_generated",False)
+        stories_exist = st.session_state.get("user_stories_generated_flag",False)
         user_stories_approved = st.session_state.get("user_stories_approved", False)
 
         if "feedback" not in st.session_state or st.session_state["feedback"] is None:
@@ -161,7 +168,7 @@ class DisplaySdlcResult:
                     placeholder="Include Subscriptions model to retain customer",
                     key="user_story_feedback_comments"
                 )
-                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("graph_running", False)
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("planning_stage_running", False)
                 if st.button("Submit Review", key="submit_review_button", disabled=submit_disabled):
                     if st.session_state.get("feedback_pending"):
                         st.warning("Feedback is already being processed. Please wait.")
@@ -180,7 +187,7 @@ class DisplaySdlcResult:
                         logger.info("Feedback stored: %s", st.session_state["feedback"])
                         st.session_state["needs_resume_after_feedback"] = True
                         if not is_approved:
-                            st.session_state["user_stories_generated"] = False
+                            st.session_state["user_stories_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
                         st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
                         st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
@@ -188,7 +195,7 @@ class DisplaySdlcResult:
                         st.rerun()
             else:
                 st.success("✅ User stories approved. Planning phase completed.")
-                st.markdown("The feedback form is disabled as the workflow is complete.")
+                st.markdown("The feedback form is disabled as the Planning Phase is complete.")
         elif requirements_exist and not stories_exist and not user_stories_approved:
             st.info("User stories will be displayed here after generation or if awaiting regeneration after feedback.")
         elif not requirements_exist and not stories_exist and not user_stories_approved:
@@ -200,6 +207,7 @@ class DisplaySdlcResult:
     def _display_design_phase(self):
         """Displays the design phase details."""
         st.header("Design Phase")
+        # st.markdown(st.session_state["design_documents"])
       
         
     @log_entry_exit
@@ -213,9 +221,10 @@ class DisplaySdlcResult:
         if design_artifacts_exist:
             expander_design_label = "Approved Design Artifacts" if design_documents_approved else "Generated User Design Artifacts"
             with st.expander(expander_design_label, expanded=False):
-                st.markdown(st.session_state["generated_design_documents"])
+                design_documents = st.session_state.get("design_documents", "Error: User stories flag set but no content found.")
+                st.markdown(design_documents)
                 if st.button("Save Design Documents", key="save_design_documents"):
-                    self._save_artifact(st.session_state["generated_design_documents"], "design_documents.txt")
+                    self._save_artifact(design_documents, "design_documents.txt")
             
             if not design_documents_approved:
                 st.markdown("### Feedback on Design Artifacts")
@@ -232,7 +241,7 @@ class DisplaySdlcResult:
                     placeholder="Include more details on the design",
                     key="design_documents_feedback_comments"
                 )
-                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("graph_running", False)
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("planning_stage_running", False)
                 if st.button("Submit Review", key="submit_review_button", disabled=submit_disabled):
                     if st.session_state.get("feedback_pending"):
                         st.warning("Feedback is already being processed. Please wait.")
@@ -251,7 +260,7 @@ class DisplaySdlcResult:
                         logger.info("Feedback stored: %s", st.session_state["feedback"])
                         st.session_state["needs_resume_after_feedback"] = True
                         if not is_approved:
-                            st.session_state["user_stories_generated"] = False
+                            st.session_state["user_stories_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
                         st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
                         st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
@@ -340,7 +349,7 @@ class DisplaySdlcResult:
             project_objectives = st.text_area("Project Objectives", value=st.session_state.get("project_objectives", DefaultObjectives), placeholder=DefaultObjectives, height=150)
 
             submit = st.form_submit_button("Generate Requirements & User Stories")
-            if submit and not st.session_state.get("graph_running"):
+            if submit and not st.session_state.get("planning_stage_running"):
                 st.session_state["project_name"] = project_name.strip() or DefaultProjectName
                 st.session_state["project_description"] = project_description.strip() or DefaultDescription
                 st.session_state["project_goals"] = project_goals.strip() or DefaultGoals
@@ -348,9 +357,9 @@ class DisplaySdlcResult:
                 st.session_state["project_objectives"] = project_objectives.strip() or DefaultObjectives
                 st.session_state["sdlc_stage"] = "planning"
                 logger.info("Initial project details submitted. Running graph for the first time.")
-                st.session_state["graph_running"] = True
+                st.session_state["planning_stage_running"] = True
                 self._run_sdlc_graph_initial()
-                st.session_state["graph_running"] = False
+                st.session_state["planning_stage_running"] = False
                 st.rerun()
 
     @log_entry_exit
@@ -394,7 +403,7 @@ class DisplaySdlcResult:
         st.session_state["generated_requirements"] = requirements
         st.session_state["generated_user_stories"] = user_stories
         st.session_state["requirements_generated"] = requirements is not None
-        st.session_state["user_stories_generated"] = user_stories is not None
+        st.session_state["user_stories_generated_flag"] = user_stories is not None
         logger.info("Initial graph run finished (interrupted). Artifacts stored in session state.")
 
 
@@ -411,7 +420,7 @@ class DisplaySdlcResult:
                 logger.error("Thread ID missing in main config. Cannot resume.")
                 st.error("Cannot resume workflow: Session thread ID is missing in configuration.")
                 st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
+                st.session_state["planning_stage_running"] = False
                 return
             thread_id = self.config["configurable"]["thread_id"] # Get thread_id from main config
 
@@ -442,10 +451,10 @@ class DisplaySdlcResult:
                 logger.error(f"Error preparing update payload for thread_id {thread_id}: {e}", exc_info=True)
                 st.error(f"Error preparing resume data: {e}. Please restart.")
                 st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
+                st.session_state["planning_stage_running"] = False
                 return
 
-            # --- Update State using graph.update_state() ---
+           
             if update_payload:
                 try:
                     logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
@@ -458,13 +467,13 @@ class DisplaySdlcResult:
                     logger.error(f"Error calling graph.update_state for thread_id {thread_id}: {e}", exc_info=True)
                     st.error(f"Error updating workflow state: {e}. Please restart.")
                     st.session_state["needs_resume_after_feedback"] = False
-                    st.session_state["graph_running"] = False
+                    st.session_state["planning_stage_running"] = False
                     return
             else:
                 logger.warning("No update payload generated, skipping state update.")
                
                 st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
+                st.session_state["planning_stage_running"] = False
                 return
 
 
@@ -496,14 +505,14 @@ class DisplaySdlcResult:
                             st.session_state["requirements_generated"] = True
                         if "user_stories" in state and state["user_stories"] is not None:
                             st.session_state["generated_user_stories"] = state["user_stories"]
-                            st.session_state["user_stories_generated"] = True
+                            st.session_state["user_stories_generated_flag"] = True
                         if "feedback_decision" in state:
                             logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
 
                 except Exception as e:
                     logger.error(f"Error during graph stream after update_state/resume: {e}", exc_info=True)
                     st.error(f"An error occurred during workflow resumption: {e}")
-                    st.session_state["graph_running"] = False
+                    st.session_state["planning_stage_running"] = False
                     return # Stop execution here
 
                 # --- Post-Stream State Update ---
@@ -530,20 +539,20 @@ class DisplaySdlcResult:
                         logger.error("Unknown SDLC stage. Cannot proceed.")
                         st.error("Unknown SDLC stage. Cannot proceed.")
                         st.session_state["user_stories_approved"] = False
-                        st.session_state["user_stories_generated"] = False
+                        st.session_state["user_stories_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
                         st.session_state["needs_resume_after_feedback"] = False
-                        st.session_state["graph_running"] = False
+                        st.session_state["planning_stage_running"] = False
                         return
                     
                     
                 else:
-                    # st.session_state["user_stories_generated"] = final_state.get("user_stories") is not None
+                    # st.session_state["user_stories_generated_flag"] = final_state.get("user_stories") is not None
                     st.session_state["user_stories_approved"] = False
                     logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
 
                 st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["graph_running"] = False
+                st.session_state["planning_stage_running"] = False
                 logger.info("Graph resumption stream processing completed. Graph completed flag: %s", st.session_state.get('user_stories_approved', False))
 
                 st.rerun()

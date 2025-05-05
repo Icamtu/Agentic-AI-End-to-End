@@ -29,9 +29,9 @@ class SdlcNode:
         state.project_goals = st.session_state.get("project_goals")
         state.project_scope = st.session_state.get("project_scope")
         state.project_objectives = st.session_state.get("project_objectives")
-        state.feedback = st.session_state.get("feedback")
+        state.feedback = st.session_state.get("feedback", {})
         state.feedback_decision = st.session_state.get("feedback_decision")
-        state.current_stage = st.session_state.get("current_stage")
+        state.current_stage = st.session_state.get("current_stage", SDLCStages.PLANNING)
         state.generated_requirements = st.session_state.get("generated_requirements")
         state.user_stories = st.session_state.get("user_stories")
         
@@ -195,10 +195,9 @@ class SdlcNode:
         logger.info(f"--- Entering process_feedback ---")
         logger.info(f"Input state: {state.to_dict() if hasattr(state, 'to_dict') else state}")
         logger.info(f"State type: {type(state)}")
-        #logger.info(f"State feedback in st: {st.session_state['feedback']}")  # Removed - no longer needed
+       
 
-        # Access feedback directly from state
-        #state.feedback = st.session_state["feedback"] # Removed - no longer needed
+        
 
         current_stage = state.get("current_stage") if isinstance(state, dict) else state.current_stage
         raw_feedback = state.get("feedback", {}) if isinstance(state, dict) else getattr(state, "feedback", {})
@@ -261,11 +260,16 @@ class SdlcNode:
         if feedback_decision == "accept":
             logger.info("Feedback accepted. Routing to next stage.")
             logger.info(f"--- Exiting feedback_route (routing: accept) ---")
+            state.feedback_decision = None  # Reset feedback decision after routing
+            next_stage = state.get_next_stage()
+            if next_stage is not None:
+                state.update_stage(next_stage)
             return "accept"
         else:
             
             logger.info(f"Feedback decision is '{feedback_decision}'. Routing back for revision.")
             logger.info(f"--- Exiting feedback_route (routing: reject) ---")
+            state.feedback_decision = None  # Reset feedback decision after routing
             return "reject"
 
 
