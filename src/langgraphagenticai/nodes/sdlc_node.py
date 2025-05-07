@@ -98,6 +98,7 @@ class SdlcNode:
     @log_entry_exit
     def design_documents(self, state: State) -> dict:
         """DUMMY: Generate design documents based on user stories (original code commented for testing)."""
+        state.feedback_decision = None
         # logger.info("Generating design documents")
         # if not state.user_stories:
         #     state.design_documents = "No user stories generated yet."
@@ -237,10 +238,12 @@ class SdlcNode:
                 logger.info("No next stage available. Ending process.")
                 
             state.clear_feedback_decision()
+            st.session_state["feedback_decision"] = None
             return "accept"
         else:
             logger.info("Feedback rejected. Routing back for revision.")
             state.clear_feedback_decision()
+            st.session_state["feedback_decision"] = None
             return "reject"
 
 

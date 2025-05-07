@@ -47,6 +47,10 @@ class DisplaySdlcResult:
             "generated_development_artifact": None,
             "generated_testing_artifact": None,
             "generated_deployment_artifact": None,
+            "design_documents_generated_flag": False,
+            "development_artifact_generated_flag": False,
+            "testing_artifact_generated_flag": False,
+            "deployment_artifact_generated_flag1 ": False,
             "feedback": None,
             "needs_resume_after_feedback": False,
             "user_stories_approved": False,
@@ -94,7 +98,7 @@ class DisplaySdlcResult:
                 st.markdown("You can restart the workflow or review the artifacts.")
 
         with tabs[1]:
-            if not st.session_state.get("design_documents_generated"):
+            if not st.session_state.get("design_documents_generated_flag"):
                 self._display_design_phase()
             self._display_design_artifacts()
         with tabs[2]: self._display_development_phase(); self._display_development_artifacts()
@@ -214,7 +218,7 @@ class DisplaySdlcResult:
     def _display_design_artifacts(self):
         """Displays design artifacts."""
         st.subheader("Design Artifacts")
-        logger.info(f"Approved user stories in session state: %s", st.session_state.get("design_documents", None))
+        logger.info(f"Current design documents in session state: %s", st.session_state.get("generated_design_documents", None))
         design_artifacts_exist = st.session_state.get("generated_design_documents",False)
         design_documents_approved = st.session_state.get("design_documents_approved", False)
         
@@ -260,7 +264,7 @@ class DisplaySdlcResult:
                         logger.info("Feedback stored: %s", st.session_state["feedback"])
                         st.session_state["needs_resume_after_feedback"] = True
                         if not is_approved:
-                            st.session_state["design_documents_generated"] = False
+                            st.session_state["design_documents_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
                         st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
                         st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
@@ -395,35 +399,43 @@ class DisplaySdlcResult:
 
         with st.spinner(f"Generating initial {artifact_description}..."):
             try:
-                for event in self.graph.stream(input_data, self.config):
-                    logger.info(f"Initial Run Event: {event}")
-                    event_key = list(event.keys())[0]
-                    if event_key == "__interrupt__":
+                # Using stream_mode="values" might be too verbose if not needed for accumulation here.
+                # Default stream_mode="updates" (or explicit) might be cleaner if just reacting to node outputs.
+                # However, if the goal is to capture the state *at interruption*, getting the state from the checkpointer
+                # after the loop is more reliable.
+                for event_dict in self.graph.stream(input_data, self.config): # event_dict is the whole event dictionary
+                    logger.info(f"Initial Run Event: {event_dict}")
+
+                    if "__interrupt__" in event_dict:
                         logger.info("Graph interrupted as expected after generating artifacts.")
-                        last_node_state = event.get("__interrupt__")
-                        if last_node_state:
-                            requirements = last_node_state.get("generated_requirements", requirements)
-                            user_stories = last_node_state.get("generated_user_stories", user_stories)
-                            design_documents = last_node_state.get("generated_design_documents", design_documents)
-                            development_artifact = last_node_state.get("generated_development_artifact", development_artifact)
-                            testing_artifact = last_node_state.get("generated_testing_artifact", testing_artifact)
-                            deployment_artifact = last_node_state.get("generated_deployment_artifact", deployment_artifact)
+                        # Artifacts should have been populated from previous node output events.
+                        # The state is saved in the checkpointer.
                         break
-                    for node, state in event.items():
-                        if state is None: continue
-                        logger.info(f"Node '{node}' updated state.")
-                        if "generated_requirements" in state:
-                            requirements = state["generated_requirements"]
-                        if "user_stories" in state:
-                            user_stories = state["user_stories"]
-                        if "design_documents" in state:
-                            design_documents = state["design_documents"]
-                        if "development_artifact" in state:
-                            development_artifact = state["development_artifact"]
-                        if "testing_artifact" in state:
-                            testing_artifact = state["testing_artifact"]
-                        if "deployment_artifact" in state:
-                            deployment_artifact = state["deployment_artifact"]
+
+                    for node_name, node_output_dict in event_dict.items():
+                        if node_name in ["__checkpoint__", "__interrupt__"]:  # Skip meta keys
+                            continue
+                        if node_output_dict is None:
+                            continue
+                        
+                        # Ensure node_output_dict is a dictionary before trying to access keys
+                        if not isinstance(node_output_dict, dict):
+                            logger.warning(f"Node '{node_name}' output is not a dict: {node_output_dict}. Skipping artifact extraction for this item.")
+                            continue
+
+                        logger.info(f"Processing output from node '{node_name}'.")
+                        if "generated_requirements" in node_output_dict:
+                            requirements = node_output_dict["generated_requirements"]
+                        if "user_stories" in node_output_dict:
+                            user_stories = node_output_dict["user_stories"]
+                        if "design_documents" in node_output_dict:
+                            design_documents = node_output_dict["design_documents"]
+                        if "development_artifact" in node_output_dict:
+                            development_artifact = node_output_dict["development_artifact"]
+                        if "testing_artifact" in node_output_dict:
+                            testing_artifact = node_output_dict["testing_artifact"]
+                        if "deployment_artifact" in node_output_dict:
+                            deployment_artifact = node_output_dict["deployment_artifact"]
             except Exception as e:
                 logger.error(f"Error during initial graph stream: {e}", exc_info=True)
                 st.error(f"An error occurred during graph execution: {e}")
@@ -438,10 +450,10 @@ class DisplaySdlcResult:
 
         st.session_state["requirements_generated"] = requirements is not None
         st.session_state["user_stories_generated_flag"] = user_stories is not None
-        st.session_state["design_documents_generated"] = design_documents is not None
-        st.session_state["development_artifact_generated"] = development_artifact is not None
-        st.session_state["testing_artifact_generated"] = testing_artifact is not None
-        st.session_state["deployment_artifact_generated"] = deployment_artifact is not None
+        st.session_state["design_documents_generated_flag"] = design_documents is not None
+        st.session_state["development_artifact_generated_flag"] = development_artifact is not None
+        st.session_state["testing_artifact_generated_flag"] = testing_artifact is not None
+        st.session_state["deployment_artifact_generated_flag1 "] = deployment_artifact is not None
         logger.info("Initial graph run finished (interrupted). Artifacts stored in session state.")
 
     @log_entry_exit
@@ -478,6 +490,7 @@ class DisplaySdlcResult:
                 logger.warning("Resume triggered but no feedback data found in session state.")
                 # Decide how to handle this: maybe default to reject or raise error?
                 update_payload['feedback_decision'] = "reject" # Defaulting to reject if no feedback
+                logger.info(f"Update payload prepared (no feedback data): {update_payload}")
 
             # We can also add/update 'last_updated' timestamp if desired
             update_payload['last_updated'] = datetime.now().isoformat()
@@ -490,6 +503,7 @@ class DisplaySdlcResult:
             return
 
         if update_payload:
+            logger.info(f"Attempting to update graph state for thread_id {thread_id} with final payload: {update_payload}")
             try:
                 logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
                 self.graph.update_state(
@@ -542,19 +556,19 @@ class DisplaySdlcResult:
                         st.session_state["user_stories_generated_flag"] = True
                     if "design_documents" in state and state["design_documents"] is not None:
                         st.session_state["generated_design_documents"] = state["design_documents"]
-                        st.session_state["design_documents_generated"] = True
+                        st.session_state["design_documents_generated_flag"] = True
                     elif "generated_design_documents" in state and state["generated_design_documents"] is not None:
                         st.session_state["generated_design_documents"] = state["generated_design_documents"]
-                        st.session_state["design_documents_generated"] = True
+                        st.session_state["design_documents_generated_flag"] = True
                     if "development_artifact" in state and state["development_artifact"] is not None:
                         st.session_state["generated_development_artifact"] = state["development_artifact"]
-                        st.session_state["development_artifact_generated"] = True
+                        st.session_state["development_artifact_generated_flag"] = True
                     if "testing_artifact" in state and state["testing_artifact"] is not None:
                         st.session_state["generated_testing_artifact"] = state["testing_artifact"]
-                        st.session_state["testing_artifact_generated"] = True
+                        st.session_state["testing_artifact_generated_flag"] = True
                     if "deployment_artifact" in state and state["deployment_artifact"] is not None:
                         st.session_state["generated_deployment_artifact"] = state["deployment_artifact"]
-                        st.session_state["deployment_artifact_generated"] = True
+                        st.session_state["deployment_artifact_generated_flag1 "] = True
                     if "feedback_decision" in state:
                         logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
 
@@ -572,6 +586,8 @@ class DisplaySdlcResult:
                 if st.session_state["sdlc_stage"] == "planning":
                     st.session_state["user_stories_approved"] = True
                     st.session_state["sdlc_stage"] = "design"
+                    st.session_state["feedback_decision"] = None
+                    st.session_state["feedback"] = None
                     logger.info("User stories approved. Proceeding to next phase.")
                 elif st.session_state["sdlc_stage"] == "design":
                     st.session_state["design_documents_approved"] = True
