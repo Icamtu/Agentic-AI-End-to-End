@@ -193,31 +193,30 @@ class SdlcNode:
         Process user feedback and update state with decision.
         Only { "current_stage": ["accept"] } ends the process.
         """
-        logger.info(f"--- Entering process_feedback ---")
-        logger.info(f"Input state: {state.to_dict()}")
+        
+        # logger.info(f"Input state: {state.to_dict()}")
+        logger.info(f"Feedback: {state.feedback}")
 
         current_stage = state.current_stage
-        feedback = state.get_last_feedback_for_stage(current_stage)
+        feedback_for_stage = state.get_last_feedback_for_stage(current_stage)
 
-        state.add_feedback(current_stage, str(feedback))
+        if feedback_for_stage is None:
+            logger.warning(f"No feedback found for stage {current_stage}. Available feedback: {state.feedback}")
+
+        state.add_feedback(current_stage, str(feedback_for_stage))
 
         logger.info(f"Processing feedback for stage: {current_stage}")
-        logger.info(f"Feedback received: {feedback}")
+        logger.info(f"Feedback received: {feedback_for_stage}")
 
-        if feedback and feedback.strip().lower() == "accept":
+        if feedback_for_stage and feedback_for_stage.strip().lower() == "accept":
             logger.info(f"Feedback for stage '{current_stage}' is ACCEPT. Ending flow.")
             state.feedback_decision = "accept"
         else:
-            logger.info(f"Feedback for stage '{current_stage}' is not accept. Looping back. Feedback is: {feedback}")
+            logger.info(f"Feedback for stage '{current_stage}' is not accept. Looping back. Feedback is: {feedback_for_stage}")
             state.feedback_decision = "reject"
-
-        return_value = {
-            "feedback_decision": state.feedback_decision,
-            "feedback": feedback
-        }
-        logger.info(f"Returning from process_feedback: {return_value}")
-        logger.info(f"--- Exiting process_feedback ---")
-        return return_value
+        logger.info(f"Feedback: {state.feedback}")
+       
+        return {"feedback_decision": state.feedback_decision}   
 
     @log_entry_exit
     def feedback_route(self, state: State) -> str:
@@ -239,6 +238,8 @@ class SdlcNode:
                 
             state.clear_feedback_decision()
             st.session_state["feedback_decision"] = None
+            logger.info(f"Feedback: {state.feedback}")
+            logger.info(f"Feedback decision: {state.feedback_decision}")
             return "accept"
         else:
             logger.info("Feedback rejected. Routing back for revision.")

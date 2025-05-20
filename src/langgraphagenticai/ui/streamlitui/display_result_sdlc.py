@@ -12,10 +12,10 @@ from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
 import os
 from langgraph.graph import END
 from langgraph.types import Command
-from src.langgraphagenticai.state.state import SDLCState
+from src.langgraphagenticai.state.state import SDLCStages, SDLCState
 from src.langgraphagenticai.ui.uiconfigfile import Config
 
-exclude_keys = ["api_key", "OPENAI_API_KEY","GOOGLE_API_KEY","TAVILY_API_KEY","GROQ_API_KEY","state"]
+exclude_keys = ["api_key", "OPENAI_API_KEY", "GOOGLE_API_KEY", "TAVILY_API_KEY", "GROQ_API_KEY", "state"]
 safe_state = {k: v for k, v in st.session_state.items() if k not in exclude_keys}
 
 # --- Pydantic Model for Feedback ---
@@ -41,21 +41,29 @@ class DisplaySdlcResult:
             "project_objectives": "",
             "requirements_generated": False,
             "user_stories_generated_flag": False,
+            "design_documents_generated_flag": False,
+            "development_artifact_generated_flag": False,
+            "testing_artifact_generated_flag": False,
+            "deployment_artifact_generated_flag": False,
             "generated_requirements": None,
             "generated_user_stories": None,
             "generated_design_documents": None,
             "generated_development_artifact": None,
             "generated_testing_artifact": None,
             "generated_deployment_artifact": None,
-            "design_documents_generated_flag": False,
-            "development_artifact_generated_flag": False,
-            "testing_artifact_generated_flag": False,
-            "deployment_artifact_generated_flag1 ": False,
-            "feedback": None,
-            "needs_resume_after_feedback": False,
             "user_stories_approved": False,
-            "planning_stage_running": False,
+            "design_documents_approved": False,
+            "development_artifact_approved": False,
+            "testing_artifact_approved": False,
+            "deployment_artifact_approved": False,
+            "feedback": {},
             "feedback_pending": False,
+            "needs_resume_after_feedback": False,
+            "planning_stage_running": False,
+            "design_stage_running": False,
+            "development_stage_running": False,
+            "testing_stage_running": False,
+            "deployment_stage_running": False,
         }
         for key, value in defaults.items():
             if key not in st.session_state:
@@ -68,18 +76,29 @@ class DisplaySdlcResult:
         st.write(safe_state)
 
         # Prevent concurrent runs
-        if st.session_state.get("planning_stage_running"):
+        running_flags = [
+            st.session_state.get("planning_stage_running"),
+            st.session_state.get("design_stage_running"),
+            st.session_state.get("development_stage_running"),
+            st.session_state.get("testing_stage_running"),
+            st.session_state.get("deployment_stage_running"),
+        ]
+        if any(running_flags):
             st.warning("Workflow is already running. Please wait.")
-            logger.warning("Workflow blocked due to planning_stage_running=True")
+            logger.warning("Workflow blocked due to active stage running.")
             return
 
         # Handle resumption
         if st.session_state.get("needs_resume_after_feedback"):
             logger.info("Detected need to resume graph after feedback.")
-            st.session_state["planning_stage_running"] = True
-            self._resume_sdlc_graph()
-            st.session_state["planning_stage_running"] = False
-            return 
+            current_stage = st.session_state.get("sdlc_stage")
+            st.session_state[f"{current_stage}_stage_running"] = True
+            try:
+                self._resume_sdlc_graph()
+            finally:
+                st.session_state[f"{current_stage}_stage_running"] = False
+            st.rerun()
+            return
 
         # Display UI
         phases = ["Planning", "Design", "Development", "Testing", "Deployment"]
@@ -91,21 +110,93 @@ class DisplaySdlcResult:
                 self._display_planning_phase()
             self._display_planning_artifacts()
             if st.session_state.get("user_stories_approved"):
-                st.session_state["user_stories"]= st.session_state["generated_user_stories"]
-                st.session_state["user_stories_approved"] = True
+                st.session_state["user_stories"] = st.session_state["generated_user_stories"]
                 st.session_state["sdlc_stage"] = "design"
+                st.session_state["feedback_decision"] = None
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["feedback_pending"] = False
                 st.success("✅ SDLC Planning Phase Completed Successfully!")
-                st.markdown("You can restart the workflow or review the artifacts.")
+                st.markdown("You can GO TO NEXT PHASE or review the artifacts.")
+                if st.session_state["sdlc_stage"] == "design" and not st.session_state.get("design_documents_generated_flag"):
+                    st.info("Moving to Design Phase and generating artifacts...")
+                    st.session_state["design_stage_running"] = True
+                    try:
+                        self._run_sdlc_graph_initial("design")
+                    finally:
+                        st.session_state["design_stage_running"] = False
+                    st.rerun()
 
         with tabs[1]:
             if not st.session_state.get("design_documents_generated_flag"):
                 self._display_design_phase()
             self._display_design_artifacts()
-        with tabs[2]: self._display_development_phase(); self._display_development_artifacts()
-        with tabs[3]: self._display_testing_phase(); self._display_testing_artifacts()
-        with tabs[4]: self._display_deployment_phase(); self._display_deployment_artifacts()
+            if st.session_state.get("design_documents_approved"):
+                st.session_state["sdlc_stage"] = "development"
+                st.session_state["feedback_decision"] = None
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["feedback_pending"] = False
+                st.success("✅ SDLC Design Phase Completed Successfully!")
+                st.markdown("You can GO TO NEXT PHASE or review the artifacts.")
+                if st.session_state["sdlc_stage"] == "development" and not st.session_state.get("development_artifact_generated_flag"):
+                    st.info("Moving to Development Phase and generating artifacts...")
+                    st.session_state["development_stage_running"] = True
+                    try:
+                        self._run_sdlc_graph_initial("development")
+                    finally:
+                        st.session_state["development_stage_running"] = False
+                    st.rerun()
 
-        
+        with tabs[2]:
+            if not st.session_state.get("development_artifact_generated_flag"):
+                self._display_development_phase()
+            self._display_development_artifacts()
+            if st.session_state.get("development_artifact_approved"):
+                st.session_state["sdlc_stage"] = "testing"
+                st.session_state["feedback_decision"] = None
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["feedback_pending"] = False
+                st.success("✅ SDLC Development Phase Completed Successfully!")
+                st.markdown("You can GO TO NEXT PHASE or review the artifacts.")
+                if st.session_state["sdlc_stage"] == "testing" and not st.session_state.get("testing_artifact_generated_flag"):
+                    st.info("Moving to Testing Phase and generating artifacts...")
+                    st.session_state["testing_stage_running"] = True
+                    try:
+                        self._run_sdlc_graph_initial("testing")
+                    finally:
+                        st.session_state["testing_stage_running"] = False
+                    st.rerun()
+
+        with tabs[3]:
+            if not st.session_state.get("testing_artifact_generated_flag"):
+                self._display_testing_phase()
+            self._display_testing_artifacts()
+            if st.session_state.get("testing_artifact_approved"):
+                st.session_state["sdlc_stage"] = "deployment"
+                st.session_state["feedback_decision"] = None
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["feedback_pending"] = False
+                st.success("✅ SDLC Testing Phase Completed Successfully!")
+                st.markdown("You can GO TO NEXT PHASE or review the artifacts.")
+                if st.session_state["sdlc_stage"] == "deployment" and not st.session_state.get("deployment_artifact_generated_flag"):
+                    st.info("Moving to Deployment Phase and generating artifacts...")
+                    st.session_state["deployment_stage_running"] = True
+                    try:
+                        self._run_sdlc_graph_initial("deployment")
+                    finally:
+                        st.session_state["deployment_stage_running"] = False
+                    st.rerun()
+
+        with tabs[4]:
+            if not st.session_state.get("deployment_artifact_generated_flag"):
+                self._display_deployment_phase()
+            self._display_deployment_artifacts()
+            if st.session_state.get("deployment_artifact_approved"):
+                st.session_state["sdlc_stage"] = "complete"
+                st.session_state["feedback_decision"] = None
+                st.session_state["needs_resume_after_feedback"] = False
+                st.session_state["feedback_pending"] = False
+                st.success("✅ SDLC Deployment Phase Completed Successfully!")
+                st.markdown("SDLC Workflow Completed!")
 
         st.markdown("---")
         if st.button("Restart SDLC Workflow", key="restart_button"):
@@ -133,13 +224,9 @@ class DisplaySdlcResult:
     def _display_planning_artifacts(self):
         """Displays generated planning artifacts and the feedback form."""
         st.subheader("Planning Artifacts")
-        requirements_exist = st.session_state.get("requirements_generated",False)
-        stories_exist = st.session_state.get("user_stories_generated_flag",False)
+        requirements_exist = st.session_state.get("requirements_generated", False)
+        stories_exist = st.session_state.get("user_stories_generated_flag", False)
         user_stories_approved = st.session_state.get("user_stories_approved", False)
-
-        if "feedback" not in st.session_state or st.session_state["feedback"] is None:
-            st.session_state["feedback"] = {}
-            logger.info("Initialized empty feedback dictionary in session state.")
 
         if requirements_exist:
             with st.expander("Generated Requirements", expanded=False):
@@ -185,16 +272,15 @@ class DisplaySdlcResult:
                         is_approved = (selected_decision == "Approve")
                         logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
                         current_stage = "planning"
-                        st.session_state["feedback"] = {
-                            current_stage: ["accept"] if is_approved else [comments.strip()]
-                        }
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+                        st.session_state["feedback"][current_stage] = ["accept" if is_approved else comments.strip()]
                         logger.info("Feedback stored: %s", st.session_state["feedback"])
                         st.session_state["needs_resume_after_feedback"] = True
                         if not is_approved:
                             st.session_state["user_stories_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
-                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
-                        st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
                         st.write("Session state after feedback: %s", st.session_state)
                         st.rerun()
             else:
@@ -205,33 +291,29 @@ class DisplaySdlcResult:
         elif not requirements_exist and not stories_exist and not user_stories_approved:
             st.info("No artifacts generated yet in the Planning phase.")
 
-   
-
     @log_entry_exit
     def _display_design_phase(self):
         """Displays the design phase details."""
         st.header("Design Phase")
-        # st.markdown(st.session_state["design_documents"])
-      
-        
+        st.info("Design documents are being generated based on approved user stories.")
+
     @log_entry_exit
     def _display_design_artifacts(self):
-        """Displays design artifacts."""
+        """Displays design artifacts and feedback form."""
         st.subheader("Design Artifacts")
-        logger.info(f"Current design documents in session state: %s", st.session_state.get("generated_design_documents", None))
-        design_artifacts_exist = st.session_state.get("generated_design_documents",False)
+        design_artifacts_exist = st.session_state.get("generated_design_documents", False)
         design_documents_approved = st.session_state.get("design_documents_approved", False)
-        
+
         if design_artifacts_exist:
-            expander_design_label = "Approved Design Artifacts" if design_documents_approved else "Generated Design Artifacts"
-            with st.expander(expander_design_label, expanded=False):
+            expander_label = "Approved Design Documents" if design_documents_approved else "Generated Design Documents"
+            with st.expander(expander_label, expanded=False):
                 design_documents = st.session_state.get("generated_design_documents", "Error: Design documents not generated.")
                 st.markdown(design_documents)
                 if st.button("Save Design Documents", key="save_design_documents"):
                     self._save_artifact(design_documents, "design_documents.txt")
-            
+
             if not design_documents_approved:
-                st.markdown("### Feedback on Design Artifacts")
+                st.markdown("### Feedback on Design Documents")
                 decision_options = ("Approve", "Reject")
                 selected_decision = st.radio(
                     "Review Decision:",
@@ -245,7 +327,7 @@ class DisplaySdlcResult:
                     placeholder="Include more details on the design",
                     key="design_documents_feedback_comments"
                 )
-                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("planning_stage_running", False)
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("design_stage_running", False)
                 if st.button("Submit Review", key="submit_review_button_design", disabled=submit_disabled):
                     if st.session_state.get("feedback_pending"):
                         st.warning("Feedback is already being processed. Please wait.")
@@ -258,91 +340,229 @@ class DisplaySdlcResult:
                         is_approved = (selected_decision == "Approve")
                         logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
                         current_stage = "design"
-                        st.session_state["feedback"] = {
-                            current_stage: ["accept"] if is_approved else [comments.strip()]
-                        }
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+                        st.session_state["feedback"][current_stage] = ["accept" if is_approved else comments.strip()]
                         logger.info("Feedback stored: %s", st.session_state["feedback"])
                         st.session_state["needs_resume_after_feedback"] = True
                         if not is_approved:
                             st.session_state["design_documents_generated_flag"] = False
                         st.session_state["feedback_pending"] = False
-                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}{st.session_state["feedback"]}")
-                        st.write(f"Feedback processing completed. Graph needs resuming: {st.session_state['needs_resume_after_feedback']}")
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
                         st.write("Session state after feedback: %s", st.session_state)
                         st.rerun()
             else:
-                st.success("✅ User stories approved. Planning phase completed.")
-                st.markdown("The feedback form is disabled as the workflow is complete.")
-            
-       
-        
+                st.success("✅ Design documents approved. Design phase completed.")
+                st.markdown("The feedback form is disabled as the Design Phase is complete.")
+        else:
+            st.info("Design documents will be displayed here after generation.")
 
     @log_entry_exit
     def _display_development_phase(self):
-        # st.header("Development Phase")
-        # st.info("Development phase details will be displayed here in future implementations.")
-        pass
+        """Displays the development phase details."""
+        st.header("Development Phase")
+        st.info("Development artifacts are being generated based on approved design documents.")
 
     @log_entry_exit
     def _display_development_artifacts(self):
-        # st.subheader("Development Artifacts")
-        # st.info("Development artifacts (e.g., code snippets, build logs) will be displayed here.")
-        pass
+        """Displays development artifacts and feedback form."""
+        st.subheader("Development Artifacts")
+        development_artifacts_exist = st.session_state.get("generated_development_artifact", False)
+        development_artifact_approved = st.session_state.get("development_artifact_approved", False)
+
+        if development_artifacts_exist:
+            expander_label = "Approved Development Artifacts" if development_artifact_approved else "Generated Development Artifacts"
+            with st.expander(expander_label, expanded=False):
+                development_artifact = st.session_state.get("generated_development_artifact", "Error: Development artifacts not generated.")
+                st.markdown(development_artifact)
+                if st.button("Save Development Artifacts", key="save_development_artifacts"):
+                    self._save_artifact(development_artifact, "development_artifact.txt")
+
+            if not development_artifact_approved:
+                st.markdown("### Feedback on Development Artifacts")
+                decision_options = ("Approve", "Reject")
+                selected_decision = st.radio(
+                    "Review Decision:",
+                    decision_options,
+                    key="development_artifact_feedback_decision",
+                    horizontal=True,
+                    index=0
+                )
+                comments = st.text_area(
+                    "Comments (Required for Rejection):",
+                    placeholder="Include details on code improvements",
+                    key="development_artifact_feedback_comments"
+                )
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("development_stage_running", False)
+                if st.button("Submit Review", key="submit_review_button_development", disabled=submit_disabled):
+                    if st.session_state.get("feedback_pending"):
+                        st.warning("Feedback is already being processed. Please wait.")
+                        return
+                    st.session_state["feedback_pending"] = True
+                    if selected_decision == "Reject" and not comments.strip():
+                        st.error("Comments are required when rejecting.")
+                        st.session_state["feedback_pending"] = False
+                    else:
+                        is_approved = (selected_decision == "Approve")
+                        logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        current_stage = "development"
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+                        st.session_state["feedback"][current_stage] = ["accept" if is_approved else comments.strip()]
+                        logger.info("Feedback stored: %s", st.session_state["feedback"])
+                        st.session_state["needs_resume_after_feedback"] = True
+                        if not is_approved:
+                            st.session_state["development_artifact_generated_flag"] = False
+                        st.session_state["feedback_pending"] = False
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        st.write("Session state after feedback: %s", st.session_state)
+                        st.rerun()
+            else:
+                st.success("✅ Development artifacts approved. Development phase completed.")
+                st.markdown("The feedback form is disabled as the Development Phase is complete.")
+        else:
+            st.info("Development artifacts will be displayed here after generation.")
 
     @log_entry_exit
     def _display_testing_phase(self):
-        # st.header("Testing Phase")
-        # st.info("Testing phase details will be displayed here in future implementations.")
-        pass
+        """Displays the testing phase details."""
+        st.header("Testing Phase")
+        st.info("Testing artifacts are being generated based on approved development artifacts.")
 
     @log_entry_exit
     def _display_testing_artifacts(self):
-        # st.subheader("Testing Artifacts")
-        # st.info("Testing artifacts (e.g., test cases, bug reports) will be displayed here.")
-        pass
+        """Displays testing artifacts and feedback form."""
+        st.subheader("Testing Artifacts")
+        testing_artifacts_exist = st.session_state.get("generated_testing_artifact", False)
+        testing_artifact_approved = st.session_state.get("testing_artifact_approved", False)
+
+        if testing_artifacts_exist:
+            expander_label = "Approved Testing Artifacts" if testing_artifact_approved else "Generated Testing Artifacts"
+            with st.expander(expander_label, expanded=False):
+                testing_artifact = st.session_state.get("generated_testing_artifact", "Error: Testing artifacts not generated.")
+                st.markdown(testing_artifact)
+                if st.button("Save Testing Artifacts", key="save_testing_artifacts"):
+                    self._save_artifact(testing_artifact, "testing_artifact.txt")
+
+            if not testing_artifact_approved:
+                st.markdown("### Feedback on Testing Artifacts")
+                decision_options = ("Approve", "Reject")
+                selected_decision = st.radio(
+                    "Review Decision:",
+                    decision_options,
+                    key="testing_artifact_feedback_decision",
+                    horizontal=True,
+                    index=0
+                )
+                comments = st.text_area(
+                    "Comments (Required for Rejection):",
+                    placeholder="Include details on test case improvements",
+                    key="testing_artifact_feedback_comments"
+                )
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("testing_stage_running", False)
+                if st.button("Submit Review", key="submit_review_button_testing", disabled=submit_disabled):
+                    if st.session_state.get("feedback_pending"):
+                        st.warning("Feedback is already being processed. Please wait.")
+                        return
+                    st.session_state["feedback_pending"] = True
+                    if selected_decision == "Reject" and not comments.strip():
+                        st.error("Comments are required when rejecting.")
+                        st.session_state["feedback_pending"] = False
+                    else:
+                        is_approved = (selected_decision == "Approve")
+                        logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        current_stage = "testing"
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+                        st.session_state["feedback"][current_stage] = ["accept" if is_approved else comments.strip()]
+                        logger.info("Feedback stored: %s", st.session_state["feedback"])
+                        st.session_state["needs_resume_after_feedback"] = True
+                        if not is_approved:
+                            st.session_state["testing_artifact_generated_flag"] = False
+                        st.session_state["feedback_pending"] = False
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        st.write("Session state after feedback: %s", st.session_state)
+                        st.rerun()
+            else:
+                st.success("✅ Testing artifacts approved. Testing phase completed.")
+                st.markdown("The feedback form is disabled as the Testing Phase is complete.")
+        else:
+            st.info("Testing artifacts will be displayed here after generation.")
 
     @log_entry_exit
     def _display_deployment_phase(self):
-        # st.header("Deployment Phase")
-        # st.info("Deployment phase details will be displayed here in future implementations.")
-        pass
+        """Displays the deployment phase details."""
+        st.header("Deployment Phase")
+        st.info("Deployment artifacts are being generated based on approved testing artifacts.")
 
     @log_entry_exit
     def _display_deployment_artifacts(self):
-        # st.subheader("Deployment Artifacts")
-        # st.info("Deployment artifacts (e.g., deployment plans, monitoring dashboards) will be displayed here.")
-        pass
+        """Displays deployment artifacts and feedback form."""
+        st.subheader("Deployment Artifacts")
+        deployment_artifacts_exist = st.session_state.get("generated_deployment_artifact", False)
+        deployment_artifact_approved = st.session_state.get("deployment_artifact_approved", False)
+
+        if deployment_artifacts_exist:
+            expander_label = "Approved Deployment Artifacts" if deployment_artifact_approved else "Generated Deployment Artifacts"
+            with st.expander(expander_label, expanded=False):
+                deployment_artifact = st.session_state.get("generated_deployment_artifact", "Error: Deployment artifacts not generated.")
+                st.markdown(deployment_artifact)
+                if st.button("Save Deployment Artifacts", key="save_deployment_artifacts"):
+                    self._save_artifact(deployment_artifact, "deployment_artifact.txt")
+
+            if not deployment_artifact_approved:
+                st.markdown("### Feedback on Deployment Artifacts")
+                decision_options = ("Approve", "Reject")
+                selected_decision = st.radio(
+                    "Review Decision:",
+                    decision_options,
+                    key="deployment_artifact_feedback_decision",
+                    horizontal=True,
+                    index=0
+                )
+                comments = st.text_area(
+                    "Comments (Required for Rejection):",
+                    placeholder="Include details on deployment improvements",
+                    key="deployment_artifact_feedback_comments"
+                )
+                submit_disabled = st.session_state.get("feedback_pending", False) or st.session_state.get("deployment_stage_running", False)
+                if st.button("Submit Review", key="submit_review_button_deployment", disabled=submit_disabled):
+                    if st.session_state.get("feedback_pending"):
+                        st.warning("Feedback is already being processed. Please wait.")
+                        return
+                    st.session_state["feedback_pending"] = True
+                    if selected_decision == "Reject" and not comments.strip():
+                        st.error("Comments are required when rejecting.")
+                        st.session_state["feedback_pending"] = False
+                    else:
+                        is_approved = (selected_decision == "Approve")
+                        logger.info(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        current_stage = "deployment"
+                        if current_stage not in st.session_state["feedback"]:
+                            st.session_state["feedback"][current_stage] = []
+                        st.session_state["feedback"][current_stage] = ["accept" if is_approved else comments.strip()]
+                        logger.info("Feedback stored: %s", st.session_state["feedback"])
+                        st.session_state["needs_resume_after_feedback"] = True
+                        if not is_approved:
+                            st.session_state["deployment_artifact_generated_flag"] = False
+                        st.session_state["feedback_pending"] = False
+                        st.write(f"Feedback submitted: {'Approved' if is_approved else 'Rejected with comments.'}")
+                        st.write("Session state after feedback: %s", st.session_state)
+                        st.rerun()
+            else:
+                st.success("✅ Deployment artifacts approved. Deployment phase completed.")
+                st.markdown("The feedback form is disabled as the Deployment Phase is complete.")
+        else:
+            st.info("Deployment artifacts will be displayed here after generation.")
 
     @log_entry_exit
     def _collect_project_requirements(self):
         """Displays the form to collect initial project details."""
-        # DefaultProjectName = "The Book Nook"
-        # DefaultDescription = """Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, 
-        #                         to allow customers to browse their inventory, place orders online, and learn about upcoming events."""
-        # DefaultGoals = """ Increase sales and revenue for The Book Nook.
-        #                     Enhance customer engagement and loyalty.
-        #                     Modernize The Book Nook's presence and reach a wider audience in Bangalore. """
-        # DefaultScope = """ Inclusions:
-        #                         Developing a mobile application compatible with Android and iOS.
-        #                         Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
-        #                         Integration with the bookstore's existing inventory management system.
-        #                         Basic user support documentation.
-        #                     Exclusions:
-        #                         Developing a separate tablet application.
-        #                         Implementing a loyalty points program (will be considered in a future phase).
-        #                         Integrating with social media platforms for direct purchasing.
-        #                         Providing real-time inventory updates beyond a daily sync.
-        #                         Developing advanced analytics dashboards for the bookstore owner in this phase."""
-        # DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
-        #                     Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
-        #                     Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
-        #                     Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
-        DefaultProjectName="demo_project"
-        DefaultDescription="demo_description"
-        DefaultGoals="demo_goals"
-        DefaultScope="demo_scope"
-        DefaultObjectives="demo_objectives"
-
+        DefaultProjectName = "demo_project"
+        DefaultDescription = "demo_description"
+        DefaultGoals = "demo_goals"
+        DefaultScope = "demo_scope"
+        DefaultObjectives = "demo_objectives"
 
         st.subheader("Define Project Details")
         with st.form("sdlc_requirements_form"):
@@ -362,20 +582,22 @@ class DisplaySdlcResult:
                 st.session_state["sdlc_stage"] = "planning"
                 logger.info("Initial project details submitted. Running graph for the first time.")
                 st.session_state["planning_stage_running"] = True
-                self._run_sdlc_graph_initial()
-                st.session_state["planning_stage_running"] = False
+                try:
+                    self._run_sdlc_graph_initial("planning")
+                finally:
+                    st.session_state["planning_stage_running"] = False
                 st.rerun()
 
     @log_entry_exit
-    def _run_sdlc_graph_initial(self):
-        """Runs the SDLC graph for the very first time with initial project details."""
+    def _run_sdlc_graph_initial(self, stage: str):
+        """Runs the SDLC graph for the first time with initial project details."""
         session_id = self.config.get("configurable", {}).get("session_id")
         if not session_id:
             logger.error("Session ID not found in config! Cannot start graph.")
             st.error("Critical error: Session ID missing. Please restart.")
             return
 
-        input_data = {"session_id": session_id}
+        input_data = {"session_id": session_id, "sdlc_stage": stage}
         requirements = None
         user_stories = None
         design_documents = None
@@ -384,45 +606,29 @@ class DisplaySdlcResult:
         deployment_artifact = None
         logger.info(f"Running SDLC graph initially with input_data: {input_data}...")
 
-        stage = st.session_state.get("sdlc_stage", "planning")
-        artifact_description = ""
-        if stage == "planning":
-            artifact_description = "requirements and user stories"
-        elif stage == "design":
-            artifact_description = "design documents"
-        elif stage == "development":
-            artifact_description = "development artifact"
-        elif stage == "testing":
-            artifact_description = "testing artifact"
-        elif stage == "deployment":
-            artifact_description = "deployment artifact"
+        artifact_description = {
+            "planning": "requirements and user stories",
+            "design": "design documents",
+            "development": "development artifact",
+            "testing": "testing artifact",
+            "deployment": "deployment artifact"
+        }.get(stage, "artifacts")
 
         with st.spinner(f"Generating initial {artifact_description}..."):
             try:
-                # Using stream_mode="values" might be too verbose if not needed for accumulation here.
-                # Default stream_mode="updates" (or explicit) might be cleaner if just reacting to node outputs.
-                # However, if the goal is to capture the state *at interruption*, getting the state from the checkpointer
-                # after the loop is more reliable.
-                for event_dict in self.graph.stream(input_data, self.config): # event_dict is the whole event dictionary
+                for event_dict in self.graph.stream(input_data, self.config):
                     logger.info(f"Initial Run Event: {event_dict}")
-
                     if "__interrupt__" in event_dict:
                         logger.info("Graph interrupted as expected after generating artifacts.")
-                        # Artifacts should have been populated from previous node output events.
-                        # The state is saved in the checkpointer.
                         break
-
                     for node_name, node_output_dict in event_dict.items():
-                        if node_name in ["__checkpoint__", "__interrupt__"]:  # Skip meta keys
+                        if node_name in ["__checkpoint__", "__interrupt__"]:
                             continue
                         if node_output_dict is None:
                             continue
-                        
-                        # Ensure node_output_dict is a dictionary before trying to access keys
                         if not isinstance(node_output_dict, dict):
-                            logger.warning(f"Node '{node_name}' output is not a dict: {node_output_dict}. Skipping artifact extraction for this item.")
+                            logger.warning(f"Node '{node_name}' output is not a dict: {node_output_dict}. Skipping artifact extraction.")
                             continue
-
                         logger.info(f"Processing output from node '{node_name}'.")
                         if "generated_requirements" in node_output_dict:
                             requirements = node_output_dict["generated_requirements"]
@@ -453,7 +659,7 @@ class DisplaySdlcResult:
         st.session_state["design_documents_generated_flag"] = design_documents is not None
         st.session_state["development_artifact_generated_flag"] = development_artifact is not None
         st.session_state["testing_artifact_generated_flag"] = testing_artifact is not None
-        st.session_state["deployment_artifact_generated_flag1 "] = deployment_artifact is not None
+        st.session_state["deployment_artifact_generated_flag"] = deployment_artifact is not None
         logger.info("Initial graph run finished (interrupted). Artifacts stored in session state.")
 
     @log_entry_exit
@@ -463,91 +669,63 @@ class DisplaySdlcResult:
         feedback_data = st.session_state.get("feedback")
         logger.info(f"Feedback data from session state: %s", feedback_data)
 
-        # Ensure config has thread_id
         if "configurable" not in self.config or "thread_id" not in self.config["configurable"]:
             logger.error("Thread ID missing in main config. Cannot resume.")
             st.error("Cannot resume workflow: Session thread ID is missing in configuration.")
             st.session_state["needs_resume_after_feedback"] = False
-            st.session_state["planning_stage_running"] = False
             return
-        thread_id = self.config["configurable"]["thread_id"] # Get thread_id from main config
+        thread_id = self.config["configurable"]["thread_id"]
 
-        update_payload = {} # Dictionary for state updates
-
+        update_payload = {}
         try:
             if feedback_data:
                 update_payload['feedback'] = feedback_data
-                current_stage_value = st.session_state.get("sdlc_stage", "planning") # TODO: Make this more robust if interrupts happen elsewhere
-
+                current_stage_value = st.session_state.get("sdlc_stage")
+                update_payload['current_stage'] = SDLCStages(current_stage_value)
                 if isinstance(feedback_data, dict) and current_stage_value in feedback_data:
-                    last_feedback = feedback_data[current_stage_value][-1].strip().lower() if feedback_data[current_stage_value] else ""
+                    stage_feedback = feedback_data.get(current_stage_value, [])
+                    last_feedback = stage_feedback[-1].strip().lower() if stage_feedback else ""
                     update_payload['feedback_decision'] = "accept" if last_feedback == "accept" else "reject"
                 else:
-                    update_payload['feedback_decision'] = "reject" # Default safely
+                    update_payload['feedback_decision'] = "reject"
                 logger.info(f"Update payload prepared: {update_payload}")
             else:
-                # If no feedback data, we probably shouldn't be resuming this way
                 logger.warning("Resume triggered but no feedback data found in session state.")
-                # Decide how to handle this: maybe default to reject or raise error?
-                update_payload['feedback_decision'] = "reject" # Defaulting to reject if no feedback
-                logger.info(f"Update payload prepared (no feedback data): {update_payload}")
-
-            # We can also add/update 'last_updated' timestamp if desired
+                update_payload['feedback_decision'] = "reject"
+                update_payload['current_stage'] = SDLCStages(st.session_state.get("sdlc_stage", "planning"))
             update_payload['last_updated'] = datetime.now().isoformat()
-
         except Exception as e:
             logger.error(f"Error preparing update payload for thread_id {thread_id}: {e}", exc_info=True)
             st.error(f"Error preparing resume data: {e}. Please restart.")
             st.session_state["needs_resume_after_feedback"] = False
-            st.session_state["planning_stage_running"] = False
             return
 
         if update_payload:
-            logger.info(f"Attempting to update graph state for thread_id {thread_id} with final payload: {update_payload}")
+            logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
             try:
-                logger.info(f"Updating graph state for thread_id {thread_id} with payload: {update_payload}")
-                self.graph.update_state(
-                    config=self.config, # Pass the main config containing thread_id
-                    values=update_payload # Pass only the fields to update
-                )
+                self.graph.update_state(config=self.config, values=update_payload)
                 logger.info(f"[OK] Updated graph state for thread_id {thread_id} with payload: {update_payload}")
             except Exception as e:
                 logger.error(f"Error calling graph.update_state for thread_id {thread_id}: {e}", exc_info=True)
                 st.error(f"Error updating workflow state: {e}. Please restart.")
                 st.session_state["needs_resume_after_feedback"] = False
-                st.session_state["planning_stage_running"] = False
                 return
-        else:
-            logger.warning("No update payload generated, skipping state update.")
 
-            st.session_state["needs_resume_after_feedback"] = False
-            st.session_state["planning_stage_running"] = False
-            return
-
-
-        # --- Resume Graph Execution using Command(resume=True) ---
         with st.spinner("Processing feedback and continuing workflow..."):
             try:
                 final_state = {}
-                # Revert to using Command(resume=True)
                 logger.info("Attempting graph stream with Command(resume=True)")
                 for event in self.graph.stream(Command(resume=True), config=self.config, stream_mode="values"):
                     logger.debug(f"Resume Stream Event: {event}")
-
                     node = event.get("log", {}).get("actions", [{}])[0].get("node")
                     state = event
-
                     if not isinstance(state, dict):
                         logger.warning(f"Received non-dict state in stream: {type(state)}. Skipping.")
                         continue
-
-                    # Log entry into graph nodes if structure allows
-                    if node: logger.info(f"Executing node: {node}")
-
-                    logger.info(f"Node '{node}' generated state update.") # Log less verbosely
-                    final_state.update(state) # Aggregate the latest state view
-
-                    # Update session state based on the received state from the graph execution
+                    if node:
+                        logger.info(f"Executing node: {node}")
+                    logger.info(f"Node '{node}' generated state update.")
+                    final_state.update(state)
                     if "generated_requirements" in state and state["generated_requirements"] is not None:
                         st.session_state["generated_requirements"] = state["generated_requirements"]
                         st.session_state["requirements_generated"] = True
@@ -557,9 +735,6 @@ class DisplaySdlcResult:
                     if "design_documents" in state and state["design_documents"] is not None:
                         st.session_state["generated_design_documents"] = state["design_documents"]
                         st.session_state["design_documents_generated_flag"] = True
-                    elif "generated_design_documents" in state and state["generated_design_documents"] is not None:
-                        st.session_state["generated_design_documents"] = state["generated_design_documents"]
-                        st.session_state["design_documents_generated_flag"] = True
                     if "development_artifact" in state and state["development_artifact"] is not None:
                         st.session_state["generated_development_artifact"] = state["development_artifact"]
                         st.session_state["development_artifact_generated_flag"] = True
@@ -568,17 +743,12 @@ class DisplaySdlcResult:
                         st.session_state["testing_artifact_generated_flag"] = True
                     if "deployment_artifact" in state and state["deployment_artifact"] is not None:
                         st.session_state["generated_deployment_artifact"] = state["deployment_artifact"]
-                        st.session_state["deployment_artifact_generated_flag1 "] = True
-                    if "feedback_decision" in state:
-                        logger.info(f"Feedback decision processed by graph node: {state['feedback_decision']}")
-
+                        st.session_state["deployment_artifact_generated_flag"] = True
             except Exception as e:
-                logger.error(f"Error during graph stream after update_state/resume: {e}", exc_info=True)
+                logger.error(f"Error during graph stream after resume: {e}", exc_info=True)
                 st.error(f"An error occurred during workflow resumption: {e}")
-                st.session_state["planning_stage_running"] = False
-                return # Stop execution here
+                return
 
-            # --- Post-Stream State Update ---
             final_feedback_decision = final_state.get("feedback_decision")
             logger.info(f"Final feedback decision after stream: {final_feedback_decision}")
 
@@ -586,43 +756,40 @@ class DisplaySdlcResult:
                 if st.session_state["sdlc_stage"] == "planning":
                     st.session_state["user_stories_approved"] = True
                     st.session_state["sdlc_stage"] = "design"
-                    st.session_state["feedback_decision"] = None
-                    st.session_state["feedback"] = None
-                    logger.info("User stories approved. Proceeding to next phase.")
+                    logger.info("User stories approved. Proceeding to design phase.")
                 elif st.session_state["sdlc_stage"] == "design":
                     st.session_state["design_documents_approved"] = True
-                    logger.info("Design documents approved. Proceeding to next phase.")
+                    st.session_state["sdlc_stage"] = "development"
+                    logger.info("Design documents approved. Proceeding to development phase.")
                 elif st.session_state["sdlc_stage"] == "development":
                     st.session_state["development_artifact_approved"] = True
-                    logger.info("Development artifact approved. Proceeding to next phase.")
+                    st.session_state["sdlc_stage"] = "testing"
+                    logger.info("Development artifact approved. Proceeding to testing phase.")
                 elif st.session_state["sdlc_stage"] == "testing":
                     st.session_state["testing_artifact_approved"] = True
-                    logger.info("Testing artifact approved. Proceeding to next phase.")
+                    st.session_state["sdlc_stage"] = "deployment"
+                    logger.info("Testing artifact approved. Proceeding to deployment phase.")
                 elif st.session_state["sdlc_stage"] == "deployment":
                     st.session_state["deployment_artifact_approved"] = True
-                    logger.info("Deployment artifact approved. Proceeding to next phase.")
+                    st.session_state["sdlc_stage"] = "complete"
+                    logger.info("Deployment artifact approved. SDLC complete.")
                 else:
-                    logger.error("Unknown SDLC stage. Cannot proceed.")
+                    logger.error("Unknown SDLC stage: %s", st.session_state["sdlc_stage"])
                     st.error("Unknown SDLC stage. Cannot proceed.")
-                    st.session_state["user_stories_approved"] = False
-                    st.session_state["user_stories_generated_flag"] = False
-                    st.session_state["feedback_pending"] = False
                     st.session_state["needs_resume_after_feedback"] = False
-                    st.session_state["planning_stage_running"] = False
                     return
-
-
             else:
-                # st.session_state["user_stories_generated_flag"] = final_state.get("user_stories") is not None
-                st.session_state["user_stories_approved"] = False
-                logger.info(f"Graph looped back or did not complete. Final feedback decision: {final_feedback_decision}")
+                logger.info(f"Graph looped back. Final feedback decision: {final_feedback_decision}")
 
             st.session_state["needs_resume_after_feedback"] = False
-            st.session_state["planning_stage_running"] = False
-            logger.info("Graph resumption stream processing completed. Graph completed flag: %s", st.session_state.get('user_stories_approved', False))
-
+            logger.info("Graph resumption completed. Approved flags: %s", {
+                "planning": st.session_state.get("user_stories_approved"),
+                "design": st.session_state.get("design_documents_approved"),
+                "development": st.session_state.get("development_artifact_approved"),
+                "testing": st.session_state.get("testing_artifact_approved"),
+                "deployment": st.session_state.get("deployment_artifact_approved")
+            })
             st.rerun()
-
 
     @log_entry_exit
     def _save_artifact(self, content: str, filename: str):
@@ -635,3 +802,30 @@ class DisplaySdlcResult:
         except Exception as e:
             logger.error(f"Error creating download link for {filename}: {e}")
             st.error(f"Could not generate download link for {filename}.")
+
+
+
+
+            
+        # DefaultProjectName = "The Book Nook"
+        # DefaultDescription = """Develop a user-friendly mobile application for "The Book Nook," a local bookstore in Bangalore, 
+        #                         to allow customers to browse their inventory, place orders online, and learn about upcoming events."""
+        # DefaultGoals = """ Increase sales and revenue for The Book Nook.
+        #                     Enhance customer engagement and loyalty.
+        #                     Modernize The Book Nook's presence and reach a wider audience in Bangalore. """
+        # DefaultScope = """ Inclusions:
+        #                         Developing a mobile application compatible with Android and iOS.
+        #                         Features: Browsing book catalog with search and filtering, viewing book details (description, author, price, availability), creating user accounts, adding books to a shopping cart, secure online payment integration, order history, push notifications for new arrivals and events, information about store hours and location.
+        #                         Integration with the bookstore's existing inventory management system.
+        #                         Basic user support documentation.
+        #                     Exclusions:
+        #                         Developing a separate tablet application.
+        #                         Implementing a loyalty points program (will be considered in a future phase).
+        #                         Integrating with social media platforms for direct purchasing.
+        #                         Providing real-time inventory updates beyond a daily sync.
+        #                         Developing advanced analytics dashboards for the bookstore owner in this phase."""
+        # DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
+        #                     Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
+        

@@ -6,4 +6,5 @@ venv/
 outputlog.txt
 app.log
 src\langgraphagenticai\logging\logs\
-
+test_sdlc_workflow.py
+.pytest_cache/
