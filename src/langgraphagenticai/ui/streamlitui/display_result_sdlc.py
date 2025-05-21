@@ -584,24 +584,25 @@ class DisplaySdlcResult:
         DefaultObjectives = """Increase online sales by 15% within the first six months of the app launch (Measurable, Achievable, Relevant, Time-bound).
                             Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
                             Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
-                            Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
+                            Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase 
+                            (Measurable, Achievable, Relevant, Time-bound). """
         
 
         st.subheader("Define Project Details")
         with st.form("sdlc_requirements_form"):
-            project_name = st.text_input("Project Name", value=st.session_state.get("project_name", DefaultProjectName), placeholder=DefaultProjectName)
-            project_description = st.text_area("Project Description", value=st.session_state.get("project_description", DefaultDescription), placeholder=DefaultDescription, height=150)
-            project_goals = st.text_area("Project Goals", value=st.session_state.get("project_goals", DefaultGoals), placeholder=DefaultGoals, height=100)
-            project_scope = st.text_area("Project Scope", value=st.session_state.get("project_scope", DefaultScope), placeholder=DefaultScope, height=200)
-            project_objectives = st.text_area("Project Objectives", value=st.session_state.get("project_objectives", DefaultObjectives), placeholder=DefaultObjectives, height=150)
+            project_name = st.text_input("Project Name", value= DefaultProjectName, placeholder=DefaultProjectName)
+            project_description = st.text_area("Project Description", value=DefaultDescription, placeholder=DefaultDescription, height=150)
+            project_goals = st.text_area("Project Goals", value=DefaultGoals, placeholder=DefaultGoals, height=100)
+            project_scope = st.text_area("Project Scope", value=DefaultScope, placeholder=DefaultScope, height=200)
+            project_objectives = st.text_area("Project Objectives", value=DefaultObjectives, placeholder=DefaultObjectives, height=150)
 
             submit = st.form_submit_button("Generate Requirements & User Stories")
             if submit and not st.session_state.get("planning_stage_running"):
-                st.session_state["project_name"] = project_name.strip() or DefaultProjectName
-                st.session_state["project_description"] = project_description.strip() or DefaultDescription
-                st.session_state["project_goals"] = project_goals.strip() or DefaultGoals
-                st.session_state["project_scope"] = project_scope.strip() or DefaultScope
-                st.session_state["project_objectives"] = project_objectives.strip() or DefaultObjectives
+                st.session_state["project_name"] = project_name.strip()
+                st.session_state["project_description"] = project_description.strip() 
+                st.session_state["project_goals"] = project_goals.strip()
+                st.session_state["project_scope"] = project_scope.strip()
+                st.session_state["project_objectives"] = project_objectives.strip()
                 st.session_state["sdlc_stage"] = "planning"
                 logger.info("Initial project details submitted. Running graph for the first time.")
                 st.session_state["planning_stage_running"] = True
@@ -621,6 +622,12 @@ class DisplaySdlcResult:
             return
 
         input_data = {"session_id": session_id, "sdlc_stage": stage}
+        # Add project details to input_data
+        input_data["project_name"] = st.session_state.get("project_name", "")
+        input_data["project_description"] = st.session_state.get("project_description", "")
+        input_data["project_goals"] = st.session_state.get("project_goals", "")
+        input_data["project_scope"] = st.session_state.get("project_scope", "")
+        input_data["project_objectives"] = st.session_state.get("project_objectives", "")
         requirements = None
         user_stories = None
         design_documents = None
@@ -851,4 +858,3 @@ class DisplaySdlcResult:
         #                     Achieve an average user rating of 4.5 stars or higher on both app stores within three months of launch (Measurable, Achievable, Relevant, Time-bound).
         #                     Acquire 500 new registered app users within the first month of launch (Measurable, Achievable, Relevant, Time-bound).
         #                     Successfully integrate the app with the existing inventory system with no data loss by the end of the development phase (Measurable, Achievable, Relevant, Time-bound). """
-        

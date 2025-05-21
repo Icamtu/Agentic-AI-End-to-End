@@ -202,7 +202,7 @@ class SdlcNode:
 class SdlcGraphBuilder:
     def __init__(self, llm, memory: MemorySaver=None):
         self.llm = llm
-        self.memory = memory or MemorySaver()
+        # self.memory = memory or MemorySaver()
 
     def build_graph(self):
         try:
@@ -236,10 +236,10 @@ class SdlcGraphBuilder:
 
             # Compile with interrupt
             graph = graph_builder.compile(
-                interrupt_before=["ProcessFeedback"],
-                checkpointer=self.memory
+                interrupt_before=["ProcessFeedback"]
+                # checkpointer=self.memory
             )
-            logger.debug("Graph compiled with checkpointer: %s", self.memory)
+            # logger.debug("Graph compiled with checkpointer: %s", self.memory)
             return graph
         except Exception as e:
             logger.error(f"Error building graph: {e}")

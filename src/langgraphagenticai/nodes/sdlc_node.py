@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from typing import List
 from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
-
+from src.langgraphagenticai.prompt_library import prompt
 
 import functools
 import time
@@ -67,8 +67,7 @@ class SdlcNode:
     @log_entry_exit
     def generate_user_stories(self, state: State) -> dict:
         """Generate user stories based on the requirements."""
-        # state.user_stories = "DUMMY USER STORIES: This is a dummy user stories list for testing."
-        # return {"user_stories": state.user_stories}
+        
         logger.info("Generating user stories")
         if not state.generated_requirements:
             state.user_stories = "No requirements generated yet."
@@ -77,8 +76,16 @@ class SdlcNode:
         feedback = state.get_last_feedback_for_stage(SDLCStages.PLANNING)
         logger.info(f"Feedback for user stories: {feedback}")
         if feedback:
-            prompt_string = f"""Based on the following software requirements AND feedback, generate a list of user stories.\n                            The previous version was rejected for the following reason: \"{feedback}\"\n                            Please make sure to address this feedback in your new user stories.\n                            \n                            Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'\n                            Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.\n\n                            Requirements:\n                            {state.generated_requirements}\n                            \n                            Previous Feedback to Address:\n                            {feedback}\n\n                            User Stories:\n                            """
-            sys_prompt = f"""\n                                    You are a Senior Software Analyst expert in Agile SDLC and user story creation. Your task is to generate detailed user stories based on the provided requirements.\n\n                                    Project Name: {state.project_name or 'N/A'}\n\n                                    Guidelines:\n\n                                    One Requirement = One User Story: Create a distinct user story for each functional requirement identified.\n                                    Unique Identifier: Assign each user story a unique ID: [PROJECT_CODE]-US-[XXX] (e.g., BN-US-001 for 'The Book Nook'). Use a short uppercase code for the project.\n                                    Structure (for each story):\n                                    Unique Identifier: [PROJECT_CODE]-US-XXX\n                                    Title: Clear summary of the functionality.\n                                    Description: As a [user role], I want [goal/feature] so that [reason/benefit].\n                                    Acceptance Criteria: Bulleted list of testable conditions (- [Criterion]).\n                                    Clarity: Use domain-specific terms. Ensure stories are specific, testable, achievable, and Agile-aligned. \n                                    5. Incorporate Feedback: The previous version was rejected. Address the following feedback while refining the user stories: \"{feedback}\"""" 
+            prompt_string = prompt.USER_STORIES_FEEDBACK_PROMPT_STRING.format(
+                feedback=feedback,
+                generated_requirements=state.generated_requirements
+            )
+            
+            sys_prompt = prompt.USER_STORIES_FEEDBACK_SYS_PROMPT.format(
+                                project_name=state.project_name or 'N/A',
+                                feedback=feedback
+                            )
+            
             messages = [
                 SystemMessage(content=sys_prompt),
                 HumanMessage(content=prompt_string)
@@ -89,8 +96,14 @@ class SdlcNode:
         else:
             try:
                 if state.generated_requirements:
-                    prompt_string = f"""Based on the following software requirements, generate a list of user stories.\n                                    Each user story should follow the format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'\n                                    Ensure the user stories cover the key functionalities outlined in the requirements and are actionable from a development perspective.\n\n                                    Requirements:\n                                    {state.generated_requirements}\n\n                                    User Stories:\n                                    """
-                    sys_prompt = f"""\n                                    You are a Senior Software Analyst expert in Agile SDLC and user story creation. Your task is to generate detailed user stories based on the provided requirements.\n\n                                    Project Name: {state.project_name or 'N/A'}\n\n                                    Guidelines:\n\n                                    One Requirement = One User Story: Create a distinct user story for each functional requirement identified.\n                                    Unique Identifier: Assign each user story a unique ID: [PROJECT_CODE]-US-[XXX] (e.g., BN-US-001 for 'The Book Nook'). Use a short uppercase code for the project.\n                                    Structure (for each story):\n                                    Unique Identifier: [PROJECT_CODE]-US-XXX\n                                    Title: Clear summary of the functionality.\n                                    Description: As a [user role], I want [goal/feature] so that [reason/benefit].\n                                    Acceptance Criteria: Bulleted list of testable conditions (- [Criterion]).\n                                    Clarity: Use domain-specific terms. Ensure stories are specific, testable, achievable, and Agile-aligned."""
+                    prompt_string = prompt.USER_STORIES_NO_FEEDBACK_PROMPT_STRING.format(
+                                generated_requirements=state.generated_requirements
+                            )
+                            
+                    sys_prompt = prompt.USER_STORIES_NO_FEEDBACK_SYS_PROMPT.format(
+                                                project_name=state.project_name or 'N/A'
+                                            )
+                    
                     messages = [
                         SystemMessage(content=sys_prompt),
                         HumanMessage(content=prompt_string)
@@ -118,8 +131,9 @@ class SdlcNode:
             logger.warning("Cannot generate design documents without user stories.")
             return {"design_documents": state.design_documents}
         try:
-            prompt_string = f"""Based on the following user stories, generate a detailed design document.\n                            The design document should include:\n                            1. Overview of the system architecture\n                            2. Detailed component designs\n                            3. Data flow diagrams\n                            4. Database schema\n                            5. API specifications\n                            \n                            User Stories:\n                            {state.user_stories}\n\n                            Design Document:\n                            """
-            messages = [SystemMessage(content="You are an expert software designer."), HumanMessage(content=prompt_string)]
+            
+            prompt_string = prompt.DESIGN_DOCUMENTS_PROMPT_STRING.format(state=state)
+            messages = [SystemMessage(content=prompt.DESIGN_DOCUMENTS_SYS_PROMPT), HumanMessage(content=prompt_string)]
             response = self.llm.invoke(messages)
             state.design_documents = response.content if hasattr(response, 'content') else str(response)
             return {"design_documents": state.design_documents}
@@ -139,8 +153,15 @@ class SdlcNode:
             logger.warning("Cannot generate development artifacts without design documents.")
             return {"development_artifact": state.development_artifact}
         try:
-            prompt_string = f"""Based on the following design documents, generate the development artifacts.\n                            The development artifacts should include:\n                            1. Source code\n                            2. Build scripts\n                            3. Configuration files\n                            4. Deployment instructions\n                            \n                            Design Documents:\n                            {state.design_documents}\n\n                            Development Artifacts:\n                            """
-            messages = [SystemMessage(content="You are an expert software developer."), HumanMessage(content=prompt_string)]
+            prompt_string = prompt.DEVELOPMENT_ARTIFACT_PROMPT_STRING.format(
+                design_documents=state.design_documents
+            )
+            messages = [
+                SystemMessage(content=prompt.DEVELOPMENT_ARTIFACT_SYS_PROMPT.format(
+                    project_name=state.project_name or 'N/A'
+                )),
+                HumanMessage(content=prompt_string)
+            ]
             response = self.llm.invoke(messages)
             state.development_artifact = response.content if hasattr(response, 'content') else str(response)
             return {"development_artifact": state.development_artifact}
@@ -160,8 +181,16 @@ class SdlcNode:
             logger.warning("Cannot generate testing artifacts without development artifacts.")
             return {"testing_artifact": state.testing_artifact}
         try:
-            prompt_string = f"""Based on the following development artifacts, generate the testing artifacts.\n                            The testing artifacts should include:\n                            1. Test cases\n                            2. Test scripts\n                            3. Test data\n                            4. Test plans\n                            \n                            Development Artifacts:\n                            {state.development_artifact}\n\n                            Testing Artifacts:\n                            """
-            messages = [SystemMessage(content="You are an expert software tester."), HumanMessage(content=prompt_string)]
+            prompt_string = prompt.TESTING_ARTIFACT_PROMPT_STRING.format(
+                user_stories=state.user_stories,
+                development_artifact=state.development_artifact
+            )
+            messages = [
+                SystemMessage(content=prompt.TESTING_ARTIFACT_SYS_PROMPT.format(
+                    project_name=state.project_name or 'N/A'
+                )),
+                HumanMessage(content=prompt_string)
+            ]
             response = self.llm.invoke(messages)
             state.testing_artifact = response.content if hasattr(response, 'content') else str(response)
             return {"testing_artifact": state.testing_artifact}
@@ -181,20 +210,8 @@ class SdlcNode:
             logger.warning("Cannot generate deployment artifacts without testing artifacts.")
             return {"deployment_artifact": state.deployment_artifact}
         try:
-            prompt_string = f"""Based on the following testing artifacts, generate the deployment artifacts.\n
-                            The deployment artifacts should include:\n
-                            1. Deployment scripts\n
-                            2. Configuration files\n
-                            3. User manuals\n
-                            \n
-                            Testing Artifacts:\n
-                            {state.testing_artifact}\n\n
-                            Deployment Artifacts:\n
-                            """
-            messages = [
-                SystemMessage(content="You are an expert software deployer."),
-                HumanMessage(content=prompt_string)
-            ]
+            prompt_string = prompt.DEPLOYMENT_ARTIFACT_PROMPT_STRING.format(state=state)
+            messages = [SystemMessage(content=prompt.DEPLOYMENT_ARTIFACT_SYS_PROMPT), HumanMessage(content=prompt_string)]
             response = self.llm.invoke(messages)
             state.deployment_artifact = response.content if hasattr(response, 'content') else str(response)
             return {"deployment_artifact": state.deployment_artifact}
