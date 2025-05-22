@@ -122,25 +122,61 @@ class SdlcNode:
     @log_entry_exit
     def design_documents(self, state: State) -> dict:
         """Generate design documents based on user stories."""
-        # state.design_documents = "DUMMY DESIGN DOCUMENT: This is a dummy design document for testing."
-        # return {"design_documents": state.design_documents}
+        
         state.feedback_decision = None
         logger.info("Generating design documents")
         if not state.user_stories:
             state.design_documents = "No user stories generated yet."
             logger.warning("Cannot generate design documents without user stories.")
             return {"design_documents": state.design_documents}
-        try:
+        
+        feedback = state.get_last_feedback_for_stage(SDLCStages.DESIGN)
+        logger.info(f"Feedback for design documents: {feedback}")
+        if feedback:
+            prompt_string = prompt.DESIGN_DOCUMENTS_FEEDBACK_PROMPT_STRING.format(
+                feedback=feedback,
+                user_stories=state.user_stories
+            )
             
-            prompt_string = prompt.DESIGN_DOCUMENTS_PROMPT_STRING.format(state=state)
-            messages = [SystemMessage(content=prompt.DESIGN_DOCUMENTS_SYS_PROMPT), HumanMessage(content=prompt_string)]
+            sys_prompt = prompt.DESIGN_DOCUMENTS_FEEDBACK_SYS_PROMPT.format(
+                                project_name=state.project_name or 'N/A',
+                                feedback=feedback
+                            )
+            
+            messages = [
+                SystemMessage(content=sys_prompt),
+                HumanMessage(content=prompt_string)
+            ]
             response = self.llm.invoke(messages)
             state.design_documents = response.content if hasattr(response, 'content') else str(response)
             return {"design_documents": state.design_documents}
-        except Exception as e:
-            logger.error(f"Error generating design documents: {e}")
-            state.design_documents = f"Error generating design documents: {str(e)}"
-            return {"design_documents": state.design_documents}
+        else:
+            try:
+                if state.user_stories:
+                    prompt_string = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING.format(
+                                user_stories=state.user_stories
+                            )
+                            
+                    sys_prompt = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT.format(
+                                                project_name=state.project_name or 'N/A'
+                                            )
+                    
+                    messages = [
+                        SystemMessage(content=sys_prompt),
+                        HumanMessage(content=prompt_string)
+                    ]
+                    response = self.llm.invoke(messages)
+                    state.design_documents = response.content if hasattr(response, 'content') else str(response)
+                    return {"design_documents": state.design_documents}
+                else:
+                    state.design_documents = "No Design Documents generated yet."
+                    return {"design_documents": state.design_documents}
+            except Exception as e:
+                logger.error(f"Error generating design documents: {e}")
+                state.design_documents = f"Error generating design documents: {str(e)}"
+                return {"design_documents": state.design_documents}
+
+       
     
     @log_entry_exit
     def development_artifact(self, state: State) -> dict:

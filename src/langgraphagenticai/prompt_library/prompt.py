@@ -176,7 +176,7 @@ Acceptance Criteria:
 """
 
 # Prompts for design_documents
-DESIGN_DOCUMENTS_PROMPT_STRING = """\
+DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING = """\
 Based on the provided user stories, generate a comprehensive Technical Design Document.
 This document will guide the development team.
 
@@ -228,7 +228,7 @@ The Technical Design Document must include the following sections, clearly delin
 --- TECHNICAL DESIGN DOCUMENT ---
 """
 
-DESIGN_DOCUMENTS_SYS_PROMPT = """\
+DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT = """\
 You are a Senior Software Architect and Technical Lead with extensive experience in designing robust and scalable software systems within an Agile SDLC.
 Your task is to generate a comprehensive Technical Design Document based on the provided user stories.
 The document must be well-structured, clear, and detailed enough for a development team to use as a blueprint for implementation.
