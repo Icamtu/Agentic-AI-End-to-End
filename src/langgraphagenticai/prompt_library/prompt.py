@@ -91,7 +91,7 @@ Acceptance Criteria:
 ---
 """
 
-USER_STORIES_NO_FEEDBACK_PROMPT_STRING = """\
+USER_STORIES_NO_FEEDBACK_PROMPT_STRING = """
 Based on the software requirements provided below, generate a list of user stories.
 
 Each user story must follow the standard format: 'As a [type of user], I want [some goal] so that [some reason/benefit].'
@@ -176,7 +176,7 @@ Acceptance Criteria:
 """
 
 # Prompts for design_documents
-DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING = """\
+DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING = """
 Based on the provided user stories, generate a comprehensive Technical Design Document.
 This document will guide the development team.
 
@@ -228,10 +228,12 @@ The Technical Design Document must include the following sections, clearly delin
 --- TECHNICAL DESIGN DOCUMENT ---
 """
 
-DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT = """\
+DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT = """
 You are a Senior Software Architect and Technical Lead with extensive experience in designing robust and scalable software systems within an Agile SDLC.
 Your task is to generate a comprehensive Technical Design Document based on the provided user stories.
 The document must be well-structured, clear, and detailed enough for a development team to use as a blueprint for implementation.
+
+Your primary output MUST be the complete Technical Design Document formatted in Markdown, following the structure outlined below. Ensure all code examples, including JSON snippets, are enclosed within appropriate Markdown code blocks (e.g., ```json...```). **Crucially, your response must contain ONLY the Markdown document content and no other extraneous text before or after the document. Absolutely DO NOT include any raw JSON, key-value pairs, or other non-Markdown text outside of Markdown code blocks.**
 
 Project Name: {project_name}
 
@@ -293,7 +295,7 @@ Use Markdown for clear formatting. Each major section should start with a Level 
             *   Response Body (JSON example).
         *   **Error Responses (key examples):**
             *   Status Code (e.g., `400 Bad Request`, `404 Not Found`, `500 Internal Server Error`).
-            *   Response Body (JSON example, e.g., `{{ "error": "Invalid input" }}`).
+            *   Response Body (JSON example, e.g., `{ "error": "Invalid input" }`).
         *   Example:
             ```
             **Endpoint:** POST /api/v1/articles
@@ -333,11 +335,9 @@ Ensure the design is cohesive and directly reflects the functionalities describe
 The output should be a single, well-formatted Markdown document.
 """
 
-
-
 # Prompts for development_artifact
 
-DEVELOPMENT_ARTIFACT_PROMPT_STRING = """\
+DEVELOPMENT_ARTIFACT_PROMPT_STRING = """
 You are an AI assistant acting as a Senior Software Engineer/Tech Lead.
 Your task is to generate a comprehensive set of Development Artifacts based on the provided Technical Design Document (TDD).
 These artifacts must serve as a practical and actionable starting point for the development team, bridging the gap between design and implementation.
@@ -404,7 +404,7 @@ These artifacts must serve as a practical and actionable starting point for the 
 Ensure the output is a single, well-formatted Markdown document, using appropriate headers, bullet points, and code blocks for readability and ease of use by the development team.
 """
 
-DEVELOPMENT_ARTIFACT_SYS_PROMPT = """\
+DEVELOPMENT_ARTIFACT_SYS_PROMPT = """
 You are a highly skilled AI assistant embodying the expertise of a seasoned Senior Software Engineer or Tech Lead.
 Your primary function is to process Technical Design Documents (TDDs) and generate comprehensive, practical, and actionable Development Artifacts.
 These artifacts are intended to provide development teams with a solid, well-reasoned starting point for implementation, effectively bridging the gap between high-level design and hands-on coding.
@@ -432,13 +432,14 @@ These artifacts are intended to provide development teams with a solid, well-rea
 7.  **Focus on Starting Point:** Remember that your output serves as a *starting point*. It should facilitate discussion and refinement by the development team, not be an exhaustive, final specification.
 
 **Interaction Mode:**
+
 You will be provided with a Technical Design Document and a specific set of instructions outlining the Development Artifacts to generate. Follow those instructions meticulously.
 
 Your goal is to empower developers with a robust foundation, enabling them to begin their work efficiently and with a clear understanding of the initial technical landscape derived from the design.
 """
 
 # Prompts for testing_artifact
-TESTING_ARTIFACT_PROMPT_STRING = """\
+TESTING_ARTIFACT_PROMPT_STRING = """
 Based on the provided User Stories and Development Artifacts, generate a comprehensive set of Testing Artifacts.
 These artifacts will guide the quality assurance process for the application.
 
@@ -463,7 +464,7 @@ The Testing Artifacts must include the following sections, clearly delineated:
 --- TESTING ARTIFACTS ---
 """
 
-TESTING_ARTIFACT_SYS_PROMPT = """\
+TESTING_ARTIFACT_SYS_PROMPT = """
 You are an experienced Quality Assurance engineer with expertise in software testing and quality assurance practices.
 Your task is to generate essential testing artifacts based on the provided development artifacts and original user stories.
 Create a comprehensive set of test cases covering different testing levels, suggest necessary test data, and provide a structured test plan.
@@ -503,7 +504,7 @@ Focus on creating practical, implementable test cases that will ensure the quali
 """
 
 # Prompts for deployment_artifact
-DEPLOYMENT_ARTIFACT_PROMPT_STRING = """\
+DEPLOYMENT_ARTIFACT_PROMPT_STRING = """
 Based on the testing artifacts and overall project context, generate comprehensive deployment artifacts.
 These artifacts will guide the deployment and maintenance process for the application.
 
@@ -543,7 +544,7 @@ The deployment artifacts should include:
 --- DEPLOYMENT ARTIFACTS ---
 """
 
-DEPLOYMENT_ARTIFACT_SYS_PROMPT = """\
+DEPLOYMENT_ARTIFACT_SYS_PROMPT = """
 You are a DevOps engineer and Site Reliability expert. Your task is to generate practical deployment artifacts
 based on the testing outcomes and overall project context. The artifacts should provide clear guidance for
 deploying, maintaining, and monitoring the application in production.

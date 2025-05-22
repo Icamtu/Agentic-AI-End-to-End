@@ -173,7 +173,7 @@ class SdlcNode:
                     return {"design_documents": state.design_documents}
             except Exception as e:
                 logger.error(f"Error generating design documents: {e}")
-                state.design_documents = f"Error generating design documents: {str(e)}"
+                state.design_documents = f"Error generating design documents: {type(e).__name__} - {str(e)}"
                 return {"design_documents": state.design_documents}
 
        

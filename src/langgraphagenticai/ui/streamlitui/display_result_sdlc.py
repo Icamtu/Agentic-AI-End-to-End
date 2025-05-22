@@ -308,6 +308,8 @@ class DisplaySdlcResult:
             expander_label = "Approved Design Documents" if design_documents_approved else "Generated Design Documents"
             with st.expander(expander_label, expanded=False):
                 design_documents = st.session_state.get("generated_design_documents", "Error: Design documents not generated.")
+                # Add logging to inspect the value of design_documents
+                logger.info(f"Value of design_documents: {design_documents}")
                 st.markdown(design_documents)
                 if st.button("Save Design Documents", key="save_design_documents"):
                     self._save_artifact(design_documents, "design_documents.txt")
