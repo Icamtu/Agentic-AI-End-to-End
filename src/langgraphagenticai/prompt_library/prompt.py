@@ -723,10 +723,13 @@ Now, please generate the user stories based on the provided software requirement
 
 """
 
+#######################################################################################################################################################
+################################################ Prompts for design_documents##########################################################################
+#######################################################################################################################################################
 
-# Prompts for design_documents
 
-DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING = """You are a Senior Software Architect tasked with generating a comprehensive Technical Design Document (TDD) based on the provided user stories. The TDD must be a clear, detailed blueprint for the development team, ensuring alignment with Agile SDLC principles and full traceability to the user stories.
+DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING = """
+You are a Senior Software Architect tasked with generating a comprehensive Technical Design Document (TDD) based on the provided user stories. The TDD must be a clear, detailed blueprint for the development team, ensuring alignment with Agile SDLC principles and full traceability to the user stories.
 
 Note: If newline ("\n") or quote (`"`) artifacts are present in the JSON or markdown, ignore them unless they interfere with valid parsing or logical interpretation.
 
@@ -844,168 +847,115 @@ Example:### Endpoint: POST /api/v1/users
 **Request Parameters**: None
 **Request Body**:
 ```json
-{
+{{  // Escaped
   "email": "string",
   "password": "string"
-}
-
-Success Response (201 Created):{
+}}  // Escaped
+Use code with caution.
+Python
+Success Response (201 Created):
+{{  // Escaped
   "id": "integer",
   "email": "string",
   "created_at": "timestamp"
-}
-
+}}  // Escaped
+ 
 Error Responses:
-400 Bad Request:{ "error": "Invalid email format" }
-
-
-409 Conflict:{ "error": "Email already exists" }
-
-
-
+400 Bad Request:
+{{ "error": "Invalid email format" }} // Escaped
+ 
+409 Conflict:
+{{ "error": "Email already exists" }} // Escaped
+ 
 Related User Stories: BN-US-001```
-
-
-
-
-6. Data Flow Diagrams (Descriptive)
-
+Data Flow Diagrams (Descriptive)
 Describe data flows for 2–3 critical user story scenarios or assumed flows:
 Trigger: User action or event.
 Steps: Components, data transformations, storage/retrieval.
 Outcome: Final result.
 Example: "1. User submits registration form. 2. Frontend sends POST /api/v1/users to API Gateway. 3. User Service stores user in User table."
-
-
 Reference user story IDs or "N/A".
-
-7. Non-Functional Requirements (Considerations)
-
+Non-Functional Requirements (Considerations)
 Address:
 Scalability: Horizontal scaling, caching.
 Performance: Indexing, asynchronous processing.
 Security: Input validation, HTTPS.
 Maintainability: Modular design, logging.
-
-
 Link to user story acceptance criteria or note assumptions if input is missing.
-
-8. Identified Gaps and Assumptions
-
+Identified Gaps and Assumptions
 Document missing or malformed user stories (e.g., parsing errors like KeyError on "email").
 For assumptions:
 Rationale: Why made.
 Impact: Risks if incorrect.
 Recommendation: Validation steps.
-
-
 For gaps:
 Implication: Impact on design.
 Recommendation: Resolution steps.
-
-
 Example:
 Gap-001: Malformed user stories (e.g., KeyError on field 'email' due to invalid formatting).
 Implication: Incomplete design.
 Recommendation: Provide structured user stories in Markdown or JSON.
-
-
-
-
-
-
 🔄 Input Format
-
 User Stories: Structured user stories in Markdown or JSON with IDs, titles, descriptions, and acceptance criteria.{user_stories}
-
-
-
-
 🔄 Output Format
-# Technical Design Document
-
-## 1. Introduction & Goals
+Technical Design Document
+1. Introduction & Goals
 [Overview and objectives, referencing user stories or noting missing input]
-
-## 2. System Architecture Overview
+2. System Architecture Overview
 [Architectural style, layers/services, and textual diagram]
-
-## 3. Detailed Component Design
-### [Component Name]
-- **Responsibilities**:
-  - [Function 1]
-  - [Function 2]
-- **Interactions**:
-  - [Interaction with other components]
-- **Related User Stories**: [e.g., BN-US-001 or N/A]
-
-## 4. Data Model & Database Schema
+3. Detailed Component Design
+[Component Name]
+Responsibilities:
+[Function 1]
+[Function 2]
+Interactions:
+[Interaction with other components]
+Related User Stories: [e.g., BN-US-001 or N/A]
+4. Data Model & Database Schema
 [Table definitions with columns, constraints, relationships, and indexes]
-
-## 5. API Specifications
-### Endpoint: [HTTP_METHOD /path]
-- **Description**: [Purpose]
-- **Request Parameters**: [Path/query params]
-- **Request Body**:
-  ```json
-  [JSON example]
-
-
-Success Response (Status Code):[JSON example]
-
-
+5. API Specifications
+Endpoint: [HTTP_METHOD /path]
+Description: [Purpose]
+Request Parameters: [Path/query params]
+Request Body:
+[JSON example]
+ 
+Success Response (Status Code):
+[JSON example]
+ 
 Error Responses:
 [JSON example]
-
-
-
-
+ 
 Related User Stories: [e.g., BN-US-001 or N/A]
-
-6. Data Flow Diagrams (Descriptive)
+Data Flow Diagrams (Descriptive)
 Flow: [User Story Title or Action]
-
 [Step-by-step data flow]
 Related User Stories: [e.g., BN-US-001 or N/A]
-
-7. Non-Functional Requirements (Considerations)
-
+Non-Functional Requirements (Considerations)
 Scalability: [Strategies]
 Performance: [Techniques]
 Security: [Measures]
 Maintainability: [Approaches]
-
-8. Identified Gaps and Assumptions
-
+Identified Gaps and Assumptions
 Assumption-XXX: [Description]
 Rationale: [Why necessary]
 Impact: [Risks if incorrect]
 Recommendation: [Validation steps]
-
-
 Gap-XXX: [Description]
 Implication: [Impact on design]
 Recommendation: [Resolution steps]
-
-
-
-
----
-
-### Instructions
-1. Validate user stories for correct format; document issues as gaps if malformed or missing.
-2. Derive TDD from user stories, or provide a minimal design based on assumed functionality (e.g., user management) if input is invalid.
-3. Map design elements to user story IDs or note "N/A".
-4. Use quantitative metrics where possible (e.g., "response time under 2 seconds").
-5. Propose a database technology only if justified; default to PostgreSQL if unclear.
-6. Ensure RESTful API specifications with success and error cases.
-7. Describe data flows for 2–3 scenarios or assumed flows.
-8. Address non-functional requirements, linking to acceptance criteria or assumptions.
-9. Document gaps/assumptions for parsing errors (e.g., KeyError on "email").
-10. Output only the Markdown TDD, with no extraneous text.
-
-### Example Output (for Malformed Input)
-```markdown
+Instructions
+Validate user stories for correct format; document issues as gaps if malformed or missing.
+Derive TDD from user stories, or provide a minimal design based on assumed functionality (e.g., user management) if input is invalid.
+Map design elements to user story IDs or note "N/A".
+Use quantitative metrics where possible (e.g., "response time under 2 seconds").
+Propose a database technology only if justified; default to PostgreSQL if unclear.
+Ensure RESTful API specifications with success and error cases.
+Describe data flows for 2–3 scenarios or assumed flows.
+Address non-functional requirements, linking to acceptance criteria or assumptions.
+Document gaps/assumptions for parsing errors (e.g., KeyError on "email").
+Output only the Markdown TDD, with no extraneous text.
+Example Output (for Malformed Input)
 # Technical Design Document
 
 ## 1. Introduction & Goals
@@ -1039,68 +989,56 @@ Columns:
 - created_at (TIMESTAMP) DEFAULT CURRENT_TIMESTAMP
 Indexes:
 - INDEX idx_email (email)
-
+Use code with caution.
+Markdown
 5. API Specifications
 Endpoint: POST /api/v1/users
-
 Description: Creates a new user account (assumed).
 Request Parameters: None
-Request Body:{
+Request Body:
+{{  // Escaped
   "email": "string",
   "password": "string"
-}
-
-
-Success Response (201 Created):{
+}}  // Escaped
+ 
+Success Response (201 Created):
+{{  // Escaped
   "id": "integer",
   "email": "string",
   "created_at": "timestamp"
-}
-
-
+}}  // Escaped
+ 
 Error Responses:
-400 Bad Request:{ "error": "Invalid email format" }
-
-
-409 Conflict:{ "error": "Email already exists" }
-
-
-
-
+400 Bad Request:
+{{ "error": "Invalid email format" }} // Escaped
+ 
+409 Conflict:
+{{ "error": "Email already exists" }} // Escaped
+ 
 Related User Stories: N/A
-
 6. Data Flow Diagrams (Descriptive)
 Flow: Assumed User Registration
-
 User submits registration form via Frontend.
 Frontend sends POST /api/v1/users to API Gateway.
 User Service stores user in User table.
 Frontend displays confirmation.
 Related User Stories: N/A
-
 7. Non-Functional Requirements (Considerations)
-
 Scalability: Stateless services for scaling.
 Performance: Indexing for fast queries.
 Security: HTTPS, password hashing assumed.
 Maintainability: Modular design.
-
 8. Identified Gaps and Assumptions
-
 Gap-001: Malformed user stories (e.g., KeyError on field 'email' due to invalid formatting).
 Implication: Design based on assumed functionality, may not meet requirements.
 Recommendation: Provide structured user stories in Markdown or JSON with IDs, titles, descriptions, and acceptance criteria.
-
-
 Assumption-001: System requires basic user management.
 Rationale: No valid user stories provided.
 Impact: Design may not align with actual needs.
 Recommendation: Validate requirements with stakeholders.
 
-
-
-
 Now, please generate the Technical Design Document based on the provided user stories. If user stories are missing or malformed, document the issue as a gap and provide a minimal design based on assumed functionality.
+
 """
 
 DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT = """
@@ -1134,80 +1072,60 @@ Output only the Markdown TDD, excluding extraneous text or raw input.
 Expected User Story Format:
 Markdown: Structured with ID, Title, User Story (As a [role], I want [goal] so that [benefit]), Acceptance Criteria, Priority, and Related Requirements.
 JSON: Array of objects with id, title, user_story, acceptance_criteria (array), priority, and related_requirements.
-Example JSON:[
-  {
+Example JSON:
+```json
+[
+  {{  // Escaped start of JSON object in array
     "id": "US-001",
     "title": "User Registration",
     "user_story": "As a visitor, I want to register so that I can access features.",
     "acceptance_criteria": ["Given I enter valid details, then my account is created."],
     "priority": "Must have",
     "related_requirements": ["FR-001"]
-  }
+  }}  // Escaped end of JSON object in array
 ]
-
-
-
-
+Use code with caution.
+Python
 Validation Steps:
 Validate user stories for presence and correct format (Markdown or JSON).
 For JSON inputs:
 Preprocess to remove stray newlines, unescaped quotes, or invalid characters.
 Validate structure using a schema (ensure id, title, user_story, acceptance_criteria fields).
-
-
 If user stories are missing, empty, or malformed (e.g., parsing errors like KeyError), document in "Identified Gaps and Assumptions":
 Gap Description: Specify error (e.g., "KeyError on field 'email' due to stray newline in JSON").
 Implication: Impact on design (e.g., "Incomplete TDD").
 Recommendation: Provide valid input (e.g., "Submit structured Markdown or JSON").
-
-
 Process valid user stories and document invalid ones as gaps, deriving partial TDD if possible.
-
 Validate that user stories are provided and correctly formatted.
 If user stories are missing, empty, or malformed (e.g., invalid JSON, stray newlines, missing fields like "email"), document the issue in the "Identified Gaps and Assumptions" section...
 If specific fields (e.g., "email") cause parsing errors (e.g., KeyError), proceed with available data and note the issue as a gap.
-
-
-3. Output Structure
-
+Output Structure
 Use Markdown with Level 2 headings (##) for major sections and Level 3 (###) for subsections.
 Structure: Introduction, Architecture, Components, Data Model, APIs, Data Flows, Non-Functional Requirements, Gaps and Assumptions.
-
-4. Section-Specific Guidelines
-1. Introduction & Goals
-
+Section-Specific Guidelines
+Introduction & Goals
 Summarize system purpose and scope based on user stories.
 List objectives tied to user story IDs or assumed goals if input is invalid.
 Example: "Enable user registration and authentication (US-001)."
-
-2. System Architecture Overview
-
+System Architecture Overview
 Propose an architecture (e.g., microservices, monolithic) based on user stories or scalability needs if unclear.
 Describe layers/services (e.g., frontend, backend, database).
 Provide a textual diagram (e.g., "Frontend -> API Gateway -> Service -> Database").
 Specify patterns (e.g., REST, event-driven) and principles (e.g., loose coupling).
-
-3. Detailed Component Design
-
+Detailed Component Design
 Identify components (e.g., services, UI modules) from user stories or assumed functionality.
 For each:
 Name: Descriptive (e.g., "User Service").
 Responsibilities: Bullet list of functions.
 Interactions: Communication with other components (e.g., APIs, queues).
 Related User Stories: IDs or "N/A".
-
-
 Example:### User Service
-- **Responsibilities**:
-  - Handle user registration.
-- **Interactions**:
-  - Exposes /api/users endpoint.
-- **Related User Stories**: US-001
-
-
-
-4. Data Model & Database Schema
-
+Responsibilities:
+Handle user registration.
+Interactions:
+Exposes /api/users endpoint.
+Related User Stories: US-001
+Data Model & Database Schema
 Derive entities from user stories or assume basic entities (e.g., User) if invalid.
 Define tables:
 Table Name: Singular (e.g., User).
@@ -1215,18 +1133,12 @@ Columns: column_name (DATA_TYPE) CONSTRAINTS (e.g., id (INT) PRIMARY KEY).
 Relationships: PKs, FKs, indexes.
 Example:Table: User
 Columns:
-- id (INT) PRIMARY KEY AUTO_INCREMENT
-- email (VARCHAR(255)) NOT NULL UNIQUE
+id (INT) PRIMARY KEY AUTO_INCREMENT
+email (VARCHAR(255)) NOT NULL UNIQUE
 Indexes:
-- INDEX idx_email (email)
-
-
-
-
+INDEX idx_email (email)
 Suggest database (e.g., PostgreSQL) or default to relational if unclear.
-
-5. API Specifications
-
+API Specifications
 Define RESTful APIs for user story functionalities.
 For each endpoint:
 Endpoint: [METHOD] /path (e.g., POST /api/users).
@@ -1237,36 +1149,32 @@ Success Response: Status and JSON example.
 Error Responses: Key errors (e.g., 400 Bad Request) with JSON.
 Related User Stories: IDs or "N/A".
 Example:### Endpoint: POST /api/users
-**Description**: Creates a user.
-**Request Body**:
-```json
-{ "email": "string", "password": "string" }
-
-Success Response (201 Created):{ "id": "integer", "email": "string" }
-
+Description: Creates a user.
+Request Body:
+{{  // Escaped
+  "email": "string", 
+  "password": "string"
+}}  // Escaped
+ 
+Success Response (201 Created):
+{{  // Escaped
+  "id": "integer", 
+  "email": "string"
+}}  // Escaped
+ 
 Error Responses:
-400 Bad Request:{ "error": "Invalid email" }
-
-
-
+400 Bad Request:
+{{ "error": "Invalid email" }} // Escaped
+ 
 Related User Stories: US-001```
-
-
-
-
-6. Data Flow Diagrams (Descriptive)
-
+Data Flow Diagrams (Descriptive)
 Describe data flows for 2–3 critical scenarios:
 Trigger: User action or event.
 Steps: Component interactions and data transformations.
 Outcome: Result.
 Example: "1. User submits form. 2. Frontend sends POST /api/users. 3. Service stores user."
-
-
 Reference user story IDs or "N/A".
-
-7. Non-Functional Requirements (Considerations)
-
+Non-Functional Requirements (Considerations)
 Address:
 Scalability: Horizontal scaling, caching.
 Performance: Indexing, async processing.
@@ -1274,126 +1182,79 @@ Security: Encryption, input validation.
 Maintainability: Modularity, documentation.
 Reliability: Uptime, error handling.
 Usability/Accessibility: Intuitive UI, WCAG compliance.
-
-
 Link to acceptance criteria or assumptions.
-
-8. Identified Gaps and Assumptions
-
+Identified Gaps and Assumptions
 Document:
 Assumptions: Made due to unclear input.
 Rationale: Why assumed.
 Impact: Risks if incorrect.
 Recommendation: Validation steps.
-
-
 Gaps: Missing or malformed input (e.g., parsing errors).
 Implication: Design impact.
 Recommendation: Resolution.
-
-
-
-
 Example:
 Gap-001: Malformed JSON input (e.g., KeyError on 'email').
 Implication: Incomplete design.
 Recommendation: Provide valid JSON.
-
-
-
-
-
-
 🔄 Input Format
-
-User Stories: Structured Markdown or JSON with IDs, titles, descriptions, acceptance criteria, priorities, and related requirements.{user_stories}
-
-
-
-
+User Stories: {user_stories} Structured Markdown or JSON with IDs, titles, descriptions, acceptance criteria, priorities, and related requirements.
 🔄 Output Format
-# Technical Design Document
-
-## 1. Introduction & Goals
+Technical Design Document
+1. Introduction & Goals
 [Overview and objectives]
-
-## 2. System Architecture Overview
+2. System Architecture Overview
 [Architecture, layers, textual diagram]
-
-## 3. Detailed Component Design
-### [Component Name]
-- **Responsibilities**: [Functions]
-- **Interactions**: [Component communications]
-- **Related User Stories**: [IDs or N/A]
-
-## 4. Data Model & Database Schema
+3. Detailed Component Design
+[Component Name]
+Responsibilities: [Functions]
+Interactions: [Component communications]
+Related User Stories: [IDs or N/A]
+4. Data Model & Database Schema
 [Table definitions with columns, constraints, relationships]
-
-## 5. API Specifications
-### Endpoint: [METHOD /path]
-- **Description**: [Purpose]
-- **Request Parameters**: [Params]
-- **Request Body**:
-  ```json
-  [JSON]
-
-
-Success Response (Status):[JSON]
-
-
+5. API Specifications
+Endpoint: [METHOD /path]
+Description: [Purpose]
+Request Parameters: [Params]
+Request Body:
+[JSON]
+ 
+Success Response (Status):
+[JSON]
+ 
 Error Responses:
 [JSON]
-
-
-
-
+ 
 Related User Stories: [IDs or N/A]
-
-6. Data Flow Diagrams (Descriptive)
+Data Flow Diagrams (Descriptive)
 Flow: [Scenario]
-
 [Steps]
 Related User Stories: [IDs or N/A]
-
-7. Non-Functional Requirements (Considerations)
-
+Non-Functional Requirements (Considerations)
 Scalability: [Strategies]
 Performance: [Techniques]
 Security: [Measures]
 Maintainability: [Approaches]
 [Other considerations]
-
-8. Identified Gaps and Assumptions
-
+Identified Gaps and Assumptions
 Assumption-XXX: [Description]
 Rationale: [Why]
 Impact: [Risks]
 Recommendation: [Steps]
-
-
 Gap-XXX: [Description]
 Implication: [Impact]
 Recommendation: [Resolution]
-
-
-
-
----
-
-### Instructions
-1. Validate user stories; preprocess JSON to remove invalid characters and enforce schema.
-2. Derive TDD from valid user stories; document invalid ones as gaps and use valid portions for partial design.
-3. If no valid input, assume minimal functionality (e.g., user management) and document as a gap.
-4. Map components, APIs, and data models to user story IDs or note "N/A".
-5. Use quantitative metrics (e.g., "API response <2 seconds") where applicable.
-6. Suggest database (e.g., PostgreSQL) only if justified; default to relational.
-7. Ensure RESTful APIs with success/error cases in proper JSON format.
-8. Describe 2–3 data flows tied to user stories or assumed scenarios.
-9. Address non-functional requirements, linking to acceptance criteria or assumptions.
-10. Log parsing errors (e.g., KeyError) in gaps with details for debugging.
-11. Output clean Markdown TDD only.
-
-
+Instructions
+Validate user stories; preprocess JSON to remove invalid characters and enforce schema.
+Derive TDD from valid user stories; document invalid ones as gaps and use valid portions for partial design.
+If no valid input, assume minimal functionality (e.g., user management) and document as a gap.
+Map components, APIs, and data models to user story IDs or note "N/A".
+Use quantitative metrics (e.g., "API response <2 seconds") where applicable.
+Suggest database (e.g., PostgreSQL) only if justified; default to relational.
+Ensure RESTful APIs with success/error cases in proper JSON format.
+Describe 2–3 data flows tied to user stories or assumed scenarios.
+Address non-functional requirements, linking to acceptance criteria or assumptions.
+Log parsing errors (e.g., KeyError) in gaps with details for debugging.
+Output clean Markdown TDD only.
 
 """
 

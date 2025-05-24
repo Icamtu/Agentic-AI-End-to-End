@@ -135,137 +135,32 @@ class SdlcNode:
     
 
     @log_entry_exit
-    def _sanitize_json(self, input_str: str) -> dict | list:
-        """
-        Sanitize and validate JSON structure for user stories.
-        Expects a list of dictionaries, each with 'id', 'title', 'user_story', 'acceptance_criteria'.
-        """
-        if not isinstance(input_str, str):
-             raise ValueError("Input for JSON sanitization must be a string.")
-
+    def design_documents(self, state: State) -> dict:
+        """Generate design documents based on user stories with robust validation."""
+        state.feedback_decision = None
+        logger.info("Generating design documents")
+        if not state.user_stories:
+            state.design_documents = "No user stories generated yet."
+            logger.warning("Cannot generate design documents without user stories.")
+            return {"design_documents": state.design_documents}
         try:
-            # Attempt to parse JSON directly
-            data = json.loads(input_str)
-
-            # Validate structure: must be a list of dictionaries
-            if not isinstance(data, list):
-                 raise ValueError("Expected a list of user stories, but received a different structure.")
-
-            cleaned_data = []
-            for item in data:
-                if not isinstance(item, dict):
-                    raise ValueError(f"Expected a dictionary item in the list, but found: {item}")
-
-                # Validate required keys and clean string values
-                required_keys = ['id', 'title', 'user_story', 'acceptance_criteria']
-                if not all(key in item for key in required_keys):
-                    missing = [key for key in required_keys if key not in item]
-                    raise ValueError(f"Missing required keys in user story item: {missing}. Item: {item}")
-
-                cleaned_item = {}
-                for key, value in item.items():
-                    # Clean string values, keep others as is
-                    cleaned_item[key.strip()] = value.strip() if isinstance(value, str) else value
-
-                cleaned_data.append(cleaned_item)
-
-            return cleaned_data
-
-        except json.JSONDecodeError as e:
-            # Catch JSON parsing errors
-            raise ValueError(f"Invalid JSON format: {str(e)}")
-        except ValueError as e:
-            # Re-raise validation errors
-            raise e
-        except Exception as e:
-            # Catch any other unexpected errors during processing
-            raise ValueError(f"Unexpected error during JSON sanitization: {str(e)}")
-
-    @log_entry_exit
-    def _is_json(self, input_str: str) -> bool:
-        """Check if input is valid JSON."""
-        if not isinstance(input_str, str):
-            return False
-        try:
-            json.loads(input_str)
-            return True
-        except json.JSONDecodeError:
-            return False
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def _generate_tdd(self, sys_prompt: str, prompt_string: str) -> str:
-        """Generate TDD with retry logic."""
-        try:
+            prompt_string = f"Your task is to generate design documents based on the following user stories:\n\n{state.user_stories}\n\nPlease provide detailed design documents that cover the architecture, components, and interactions required to implement these user stories."
+            sys_prompt = f" You are an expert software architect. Your task is to generate design documents based on the user stories provided. The design documents should be comprehensive and cover all aspects of the architecture, components, and interactions required to implement the user stories.\n\nProject Name: {state.project_name or 'N/A'}"
             messages = [
                 SystemMessage(content=sys_prompt),
                 HumanMessage(content=prompt_string)
             ]
             response = self.llm.invoke(messages)
-            return response.content if hasattr(response, 'content') else str(response)
-        except Exception as e:
-            logger.error(f"LLM invocation failed: {str(e)}")
-            raise
-    @log_entry_exit
-    def design_documents(self, state: State) -> dict[str, str]:
-        """Generate design documents based on user stories with robust validation."""
-        state.feedback_decision = None
-        logger.info("Generating design documents")
-
-        # Handle empty or missing user stories
-        if not state.user_stories or not state.user_stories.strip():
-            state.design_documents = "No user stories provided for design document generation."
-            logger.warning("Cannot generate design documents without user stories.")
+            state.design_documents = response.content if hasattr(response, 'content') else str(response)
             return {"design_documents": state.design_documents}
-
-        # Validate and sanitize user stories
-        sanitized_stories = state.user_stories
-        if self._is_json(state.user_stories):
-            try:
-                sanitized_stories = json.dumps(self._sanitize_json(state.user_stories))
-                logger.info("Sanitized JSON user stories successfully")
-            except ValueError as e:
-                state.design_documents = f"Invalid user stories format: {str(e)}"
-                logger.error(f"User stories validation failed: {str(e)}, Input: {state.user_stories[:100]}...")
-                return {"design_documents": state.design_documents}
-        else:
-            # If not JSON, use the original string directly
-            sanitized_stories = state.user_stories
-            logger.info("User stories are not JSON, using raw string.")
-
-
-        # Get feedback for design stage
-        feedback = state.get_last_feedback_for_stage(SDLCStages.DESIGN)
-        logger.info(f"Feedback for design documents: {feedback or 'None'}")
-
-        try:
-            # Prepare prompt based on feedback presence
-            # Corrected prompt variable names as there are no feedback-specific design document prompts
-            sys_prompt = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT.format(
-                user_stories=sanitized_stories,
-                project_name=state.project_name or 'N/A'
-            )
-            prompt_string = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING.format(
-                user_stories=sanitized_stories,
-                project_name=state.project_name or 'N/A'
-            )
-
-            # Generate TDD with retry
-            logger.debug(f"Sanitized user stories being passed to TDD generation: {sanitized_stories}")
-            try:
-                state.design_documents = self._generate_tdd(sys_prompt, prompt_string)
-                logger.info("Design documents generated successfully")
-                return {"design_documents": state.design_documents}
-            except Exception as e:
-                logger.error(f"TDD generation failed: {str(e)}")
-
-            
-
         except Exception as e:
-            error_msg = f"Error generating design documents: {type(e).__name__} - {str(e)}"
-            state.design_documents = error_msg
-            logger.error(f"{error_msg}, Input: {sanitized_stories[:100]}...")
+            logger.error(f"Error generating design documents: {e}")
+            state.design_documents = f"Error generating design documents: {str(e)}"
             return {"design_documents": state.design_documents}
+        
 
+      
+      
     @log_entry_exit
     def development_artifact(self, state: State) -> dict:
         """Generate development artifacts based on design documents."""
