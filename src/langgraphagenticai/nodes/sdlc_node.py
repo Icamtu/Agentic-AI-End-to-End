@@ -136,27 +136,56 @@ class SdlcNode:
 
     @log_entry_exit
     def _sanitize_json(self, input_str: str) -> dict | list:
-        """Sanitize and validate JSON input, raising ValueError on failure."""
+        """
+        Sanitize and validate JSON structure for user stories.
+        Expects a list of dictionaries, each with 'id', 'title', 'user_story', 'acceptance_criteria'.
+        """
+        if not isinstance(input_str, str):
+             raise ValueError("Input for JSON sanitization must be a string.")
+
         try:
-            # Remove control characters and stray newlines
-            # This regex matches control characters (0x00-0x1F and 0x7F)
-            cleaned = re.sub(r'[\x00-\x1F\x7F]', '', input_str).replace('\n', ' ').replace('\r', '').strip()
-            data = json.loads(cleaned)
-            # Validate basic structure
-            if isinstance(data, list):
-                for item in data:
-                    if not all(key in item for key in ['id', 'title', 'user_story', 'acceptance_criteria']):
-                        raise ValueError("Invalid user story structure: missing required fields")
-            elif not all(key in data for key in ['id', 'title', 'user_story', 'acceptance_criteria']):
-                raise ValueError("Invalid user story structure: missing required fields")
-            return data
+            # Attempt to parse JSON directly
+            data = json.loads(input_str)
+
+            # Validate structure: must be a list of dictionaries
+            if not isinstance(data, list):
+                 raise ValueError("Expected a list of user stories, but received a different structure.")
+
+            cleaned_data = []
+            for item in data:
+                if not isinstance(item, dict):
+                    raise ValueError(f"Expected a dictionary item in the list, but found: {item}")
+
+                # Validate required keys and clean string values
+                required_keys = ['id', 'title', 'user_story', 'acceptance_criteria']
+                if not all(key in item for key in required_keys):
+                    missing = [key for key in required_keys if key not in item]
+                    raise ValueError(f"Missing required keys in user story item: {missing}. Item: {item}")
+
+                cleaned_item = {}
+                for key, value in item.items():
+                    # Clean string values, keep others as is
+                    cleaned_item[key.strip()] = value.strip() if isinstance(value, str) else value
+
+                cleaned_data.append(cleaned_item)
+
+            return cleaned_data
+
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {str(e)}")
+            # Catch JSON parsing errors
+            raise ValueError(f"Invalid JSON format: {str(e)}")
+        except ValueError as e:
+            # Re-raise validation errors
+            raise e
         except Exception as e:
-            raise ValueError(f"JSON validation error: {str(e)}")
+            # Catch any other unexpected errors during processing
+            raise ValueError(f"Unexpected error during JSON sanitization: {str(e)}")
+
     @log_entry_exit
     def _is_json(self, input_str: str) -> bool:
         """Check if input is valid JSON."""
+        if not isinstance(input_str, str):
+            return False
         try:
             json.loads(input_str)
             return True
@@ -221,9 +250,15 @@ class SdlcNode:
             )
 
             # Generate TDD with retry
-            state.design_documents = self._generate_tdd(sys_prompt, prompt_string)
-            logger.info("Design documents generated successfully")
-            return {"design_documents": state.design_documents}
+            logger.debug(f"Sanitized user stories being passed to TDD generation: {sanitized_stories}")
+            try:
+                state.design_documents = self._generate_tdd(sys_prompt, prompt_string)
+                logger.info("Design documents generated successfully")
+                return {"design_documents": state.design_documents}
+            except Exception as e:
+                logger.error(f"TDD generation failed: {str(e)}")
+
+            
 
         except Exception as e:
             error_msg = f"Error generating design documents: {type(e).__name__} - {str(e)}"
