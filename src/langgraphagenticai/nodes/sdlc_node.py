@@ -6,8 +6,8 @@ import json
 from datetime import datetime
 from typing import List
 from src.langgraphagenticai.logging.logging_utils import logger, log_entry_exit
-from src.langgraphagenticai.prompt_library import prompt # Assuming your prompts are here
-# import json # Duplicate import, already imported
+from src.langgraphagenticai.prompt_library import prompt 
+from typing import Dict, Any
 from tenacity import retry, stop_after_attempt, wait_exponential
 import functools
 import time
@@ -161,51 +161,84 @@ class SdlcNode:
         logger.info(f"--- END User Stories for TDD Prompt ---")
 
 
-        # Get feedback for design stage (currently not used in these prompts but good to have)
-        # feedback = state.get_last_feedback_for_stage(SDLCStages.DESIGN)
-        # logger.info(f"Feedback for design documents: {feedback or 'None'}")
+       
+        feedback = state.get_last_feedback_for_stage(SDLCStages.DESIGN)
+        logger.info(f"Feedback for design documents: {feedback or 'None'}")
+        if feedback:
+            formatted_feedback = str(feedback).replace('{', '{{').replace('}', '}}')
+            logger.info(f"Formatted feedback for design documents: {formatted_feedback[:200]}...")
+            try:
+                prompt_string_content = prompt.DESIGN_DOCUMENTS_FEEDBACK_PROMPT_STRING.format(
+                    user_stories=user_stories_for_prompt,
+                    user_feedback=formatted_feedback,
+                    project_name=project_name_for_prompt
+                )
+                sys_prompt_content = prompt.DESIGN_DOCUMENTS_FEEDBACK_SYS_PROMPT.format(
+                    user_stories=user_stories_for_prompt,
+                    feedback=formatted_feedback,
+                    project_name=project_name_for_prompt
+                )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string_content)
+                ]
+                response = self.llm.invoke(messages)
+                state.design_documents = response.content if hasattr(response, 'content') else str(response)
+                logger.info("Design documents generated successfully with feedback.")
+                return {"design_documents": state.design_documents}
+            except KeyError as ke:
+                error_msg = f"KeyError during TDD prompt formatting with feedback: {str(ke)}. This means a placeholder in your DESIGN_DOCUMENTS_FEEDBACK prompts was not found in the .format() call."
+                logger.error(error_msg)
+                logger.error(f"User stories (snippet): {user_stories_for_prompt[:200]}")
+                logger.error(f"Project name: {project_name_for_prompt}")
+                state.design_documents = error_msg
+                return {"design_documents": state.design_documents}
+            except Exception as e:
+                error_msg = f"Error generating design documents with feedback: {type(e).__name__} - {str(e)}"
+                state.design_documents = error_msg
+                logger.error(f"{error_msg}, Input User Stories (snippet): {user_stories_for_prompt[:200]}...")
+                return {"design_documents": state.design_documents}
+         
 
-        try:
-            # Use the detailed prompts from prompt_library
-            # Ensure the placeholders in your prompts match what you provide here.
-            # The prompts DESIGN_DOCUMENTS_NO_FEEDBACK_... expect {project_name} and {user_stories}
+        else:
+            try:
+                            
+                sys_prompt_content = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT.format(
+                    user_stories=user_stories_for_prompt,
+                    project_name=project_name_for_prompt
+                )
+                prompt_string_content = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING.format(
+                    user_stories=user_stories_for_prompt,
+                    project_name=project_name_for_prompt # Assuming this is also needed here
+                )
+                
+                logger.debug(f"--- Formatted System Prompt for TDD (first 500 chars) ---")
+                logger.debug(sys_prompt_content[:500] + "...")
+                logger.debug(f"--- Formatted Human Prompt for TDD (first 500 chars) ---")
+                logger.debug(prompt_string_content[:500] + "...")
 
-            sys_prompt_content = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_SYS_PROMPT.format(
-                user_stories=user_stories_for_prompt,
-                project_name=project_name_for_prompt
-            )
-            prompt_string_content = prompt.DESIGN_DOCUMENTS_NO_FEEDBACK_PROMPT_STRING.format(
-                user_stories=user_stories_for_prompt,
-                project_name=project_name_for_prompt # Assuming this is also needed here
-            )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string_content)
+                ]
             
-            logger.debug(f"--- Formatted System Prompt for TDD (first 500 chars) ---")
-            logger.debug(sys_prompt_content[:500] + "...")
-            logger.debug(f"--- Formatted Human Prompt for TDD (first 500 chars) ---")
-            logger.debug(prompt_string_content[:500] + "...")
+                response = self.llm.invoke(messages)
+                state.design_documents = response.content if hasattr(response, 'content') else str(response)
+                logger.info("Design documents generated successfully.")
+                return {"design_documents": state.design_documents}
 
-            messages = [
-                SystemMessage(content=sys_prompt_content),
-                HumanMessage(content=prompt_string_content)
-            ]
-           
-            response = self.llm.invoke(messages)
-            state.design_documents = response.content if hasattr(response, 'content') else str(response)
-            logger.info("Design documents generated successfully.")
-            return {"design_documents": state.design_documents}
-
-        except KeyError as ke:
-            error_msg = f"KeyError during TDD prompt formatting: {str(ke)}. This means a placeholder in your DESIGN_DOCUMENTS_... prompts was not found in the .format() call."
-            logger.error(error_msg)
-            logger.error(f"User stories (snippet): {user_stories_for_prompt[:200]}")
-            logger.error(f"Project name: {project_name_for_prompt}")
-            state.design_documents = error_msg
-            return {"design_documents": state.design_documents}
-        except Exception as e:
-            error_msg = f"Error generating design documents: {type(e).__name__} - {str(e)}"
-            state.design_documents = error_msg
-            logger.error(f"{error_msg}, Input User Stories (snippet): {user_stories_for_prompt[:200]}...")
-            return {"design_documents": state.design_documents}
+            except KeyError as ke:
+                error_msg = f"KeyError during TDD prompt formatting: {str(ke)}. This means a placeholder in your DESIGN_DOCUMENTS_... prompts was not found in the .format() call."
+                logger.error(error_msg)
+                logger.error(f"User stories (snippet): {user_stories_for_prompt[:200]}")
+                logger.error(f"Project name: {project_name_for_prompt}")
+                state.design_documents = error_msg
+                return {"design_documents": state.design_documents}
+            except Exception as e:
+                error_msg = f"Error generating design documents: {type(e).__name__} - {str(e)}"
+                state.design_documents = error_msg
+                logger.error(f"{error_msg}, Input User Stories (snippet): {user_stories_for_prompt[:200]}...")
+                return {"design_documents": state.design_documents}
       
     @log_entry_exit
     def development_artifact(self, state: State) -> dict:
@@ -221,29 +254,57 @@ class SdlcNode:
         project_name_val = state.project_name or 'N/A'
         project_name_for_prompt = str(project_name_val).replace('{', '{{').replace('}', '}}')
 
-        try:
-            prompt_string = prompt.DEVELOPMENT_ARTIFACT_PROMPT_STRING.format(
-                design_documents=design_documents_for_prompt
-            )
-            sys_prompt_content = prompt.DEVELOPMENT_ARTIFACT_SYS_PROMPT.format(
-                project_name=project_name_for_prompt
-            )
-            messages = [
-                SystemMessage(content=sys_prompt_content),
-                HumanMessage(content=prompt_string)
-            ]
-            response = self.llm.invoke(messages)
-            state.development_artifact = response.content if hasattr(response, 'content') else str(response)
-            return {"development_artifact": state.development_artifact}
-        except KeyError as ke:
-            error_msg = f"KeyError during DEVELOPMENT_ARTIFACT prompt formatting: {str(ke)}."
-            logger.error(error_msg)
-            state.development_artifact = error_msg
-            return {"development_artifact": state.development_artifact}
-        except Exception as e:
-            logger.error(f"Error generating development artifacts: {e}")
-            state.development_artifact = f"Error generating development artifacts: {str(e)}"
-            return {"development_artifact": state.development_artifact}
+        if feedback := state.get_last_feedback_for_stage(SDLCStages.DEVELOPMENT):
+            feedback_for_prompt = str(feedback).replace('{', '{{').replace('}', '}}')
+            logger.info(f"Feedback for development artifacts: {feedback_for_prompt[:200]}...")  # Log a snippet
+            try:
+                prompt_string = prompt.DEVELOPMENT_ARTIFACT_FEEDBACK_PROMPT_STRING.format(
+                    design_documents=design_documents_for_prompt,
+                    feedback=feedback_for_prompt
+                )
+                sys_prompt_content = prompt.DEVELOPMENT_ARTIFACT_FEEDBACK_SYS_PROMPT.format(
+                    design_documents=design_documents_for_prompt,
+                    project_name=project_name_for_prompt,
+                    feedback=feedback_for_prompt
+                )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string)
+                ]
+                response = self.llm.invoke(messages)
+                state.development_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"development_artifact": state.development_artifact}
+            except KeyError as ke:
+                error_msg = f"KeyError during DEVELOPMENT_ARTIFACT_FEEDBACK prompt formatting: {str(ke)}."
+                logger.error(error_msg)
+                logger.error(f"Design documents (snippet): {design_documents_for_prompt[:200]}")
+        else: 
+
+            try:
+                prompt_string = prompt.DEVELOPMENT_ARTIFACT_MPT_STRING.format(
+                    design_document=design_documents_for_prompt,
+                    project_name=project_name_for_prompt
+                    
+                )
+                sys_prompt_content = prompt.DEVELOPMENT_ARTIFACT_SYS_PROMPT.format(
+                    project_name=project_name_for_prompt
+                )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string)
+                ]
+                response = self.llm.invoke(messages)
+                state.development_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"development_artifact": state.development_artifact}
+            except KeyError as ke:
+                error_msg = f"KeyError during DEVELOPMENT_ARTIFACT prompt formatting: {str(ke)}."
+                logger.error(error_msg)
+                state.development_artifact = error_msg
+                return {"development_artifact": state.development_artifact}
+            except Exception as e:
+                logger.error(f"Error generating development artifacts: {e}")
+                state.development_artifact = f"Error generating development artifacts: {str(e)}"
+                return {"development_artifact": state.development_artifact}
     
     @log_entry_exit
     def testing_artifact(self, state: State) -> dict:
@@ -294,10 +355,7 @@ class SdlcNode:
             logger.warning("Cannot generate deployment artifacts without testing artifacts.")
             return {"deployment_artifact": state.deployment_artifact}
 
-        # Escape inputs for .format()
-        # The DEPLOYMENT_ARTIFACT_PROMPT_STRING uses {state}, which is not standard for .format()
-        # It should be specific fields like {state.testing_artifact} or {testing_artifact}
-        # For now, assuming it wants the string representation of the testing_artifact and project_name
+  
         testing_artifact_for_prompt = str(state.testing_artifact).replace('{', '{{').replace('}', '}}')
         project_name_val = state.project_name or 'N/A'
         project_name_for_prompt = str(project_name_val).replace('{', '{{').replace('}', '}}')
