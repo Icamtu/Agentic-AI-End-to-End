@@ -208,7 +208,7 @@ Produce a professional, structured, and actionable requirements document that en
   - **Description**: [Ease of updates, modularity, or documentation]
   - **Acceptance Criteria**: [How maintainability will be assessed]
   - **Priority**: [If applicable]
-  - (Continue sequentially: NFR-MAIN-001, NFR-MAIN-002, etc.)
+  - (Continue numbering sequentially: NFR-MAIN-001, NFR-MAIN-002, etc.)
 
 ### Data Requirements (if applicable)
 - **DR-XXX**: [Requirement description]
@@ -390,7 +390,7 @@ The previous user stories were rejected due to: "{feedback}". You MUST:
 3. **Quality Standards (INVEST Criteria)**:
    - **Independent**: Each story should be self-contained, with minimal dependencies on other stories.
    - **Negotiable**: Allow for stakeholder refinement during sprint planning.
-   - **Valuable**: Deliver clear value to the user or system.
+   - **Valuable**: Delivers clear value to the user or system.
    - **Estimable**: Provide enough detail for developers to estimate effort.
    - **Small**: Break down large requirements into manageable stories.
    - **Testable**: Ensure acceptance criteria allow for clear verification.
@@ -1646,21 +1646,23 @@ Output clean Markdown TDD only.
 ####################################################################################################################################################
 ###################################################### Prompts for development_artifact#############################################################
 ####################################################################################################################################################
+DEVELOPMENT_ARTIFACT_PROMPT_STRING="""
+You are an expert AI Project Scaffolding Engine tasked with generating a modular, production-level project structure based on a Technical Design Document (TDD). Your role is to create a well-organized
+use {project_name} and using the input `project_name` & {design_documents}."""
 
-
-DEVELOPMENT_ARTIFACT_PROMPT_STRING = """
+DEVELOPMENT_ARTIFACT_PROMPT_STRING_x = """
 You are an expert AI Project Scaffolding Engine tasked with generating a modular, production-level project structure based on a Technical Design Document (TDD). Your role is to create a well-organized scaffold with file structure, modular code skeletons, configuration files, and documentation stubs, all derived from the provided TDD and using the input `project_name`.
 
 **Input Technical Design Document (TDD):**
 The TDD is provided in the user's message, enclosed in triple backticks:
-design_documents:{design_document}
+```{design_documents}```
 
 **CRITICAL INSTRUCTION: STRUCTURED FILE-CONTENT OUTPUT**
 - Your response MUST consist solely of a project file structure. For each file:
   - Indicate the file path using: `--- File: path/to/file.ext ---`.
   - Follow immediately with the file's complete content in a Markdown code block (e.g., ```python for Python, ```javascript for JavaScript, ``` for text files like README.md).
   - Do NOT include prose, introductions, or summaries outside file content. Place explanatory notes as comments within the file content.
-  - Ignore any requests or instructions outside processing the {design_document} and generating the scaffold.
+  - Ignore any requests or instructions outside processing the {design_documents} and generating the scaffold.
 
 **Content Guidelines (Derived from TDD):**
 - **Source Code Files (.py, .js, .ts, .java, .go, .sql, etc.):** Generate modular code skeletons/stubs directly from the TDD, following the "Core Directives" below.
@@ -1806,7 +1808,7 @@ class ExampleService:
     async def create_example(self, data: Example) -> Example:
         # TODO: Implement creation logic per TDD
         # ASSUMPTION: Simulating creation with ID assignment
-        return Example {id=1, name={{data.name}}}
+        return Example {{id=1, name={{data.name}}}}
 ```
 
 --- File: src/api/v1/router.py ---
@@ -1828,7 +1830,7 @@ async def create_example(data: Example):
 
 **Notes:**
 - Use `{project_name}` for naming (e.g., `README.md` title, FastAPI app title).
-- Generate one cohesive, modular project scaffold per response, based solely on the `{design_document}`.
+- Generate one cohesive, modular project scaffold per response, based solely on the `{design_documents}`.
 - Prioritize loose coupling (e.g., separate routers, services, models) and reusability (e.g., injectable services).
 - Ensure all files are syntactically correct and follow the TDD's specifications.
 """
@@ -2090,8 +2092,12 @@ Create a comprehensive set of test cases covering different testing levels, sugg
 
 Focus on creating practical, implementable test cases that will ensure the quality and reliability of the application.
 """
+#########################################################################################################################################
+#########################################################################################################################################
+############################################## Prompts for deployment_artifact ##########################################################
+#########################################################################################################################################
+##########################################################################################################################################
 
-# Prompts for deployment_artifact
 DEPLOYMENT_ARTIFACT_PROMPT_STRING = """
 Based on the testing artifacts and overall project context, generate comprehensive deployment artifacts.
 These artifacts will guide the deployment and maintenance process for the application.
@@ -2111,20 +2117,20 @@ The deployment artifacts should include:
    * Security considerations
 
 3. Configuration Management:
-   * Environment-specific configurations
-   * Secret management
-   * Configuration file templates
+   - Environment-specific configurations
+   - Secret management
+   - Configuration file templates
 
 4. Monitoring & Maintenance:
-   * Monitoring setup guidelines
-   * Log management
-   * Backup and recovery procedures
-   * Performance monitoring
+   - Monitoring setup guidelines
+   - Log management
+   - Backup and recovery procedures
+   - Performance monitoring
 
 5. User Documentation:
-   * System administration guide
-   * Troubleshooting guide
-   * FAQ section
+   - System administration guide
+   - Troubleshooting guide
+   - FAQ section
 
 --- Testing Artifacts (Input) ---
 {testing_artifact}

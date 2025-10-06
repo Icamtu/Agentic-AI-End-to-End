@@ -281,8 +281,8 @@ class SdlcNode:
         else: 
 
             try:
-                prompt_string = prompt.DEVELOPMENT_ARTIFACT_MPT_STRING.format(
-                    design_document=design_documents_for_prompt,
+                prompt_string = prompt.DEVELOPMENT_ARTIFACT_PROMPT_STRING.format(
+                    design_documents=design_documents_for_prompt,
                     project_name=project_name_for_prompt
                     
                 )
@@ -321,30 +321,66 @@ class SdlcNode:
         project_name_val = state.project_name or 'N/A'
         project_name_for_prompt = str(project_name_val).replace('{', '{{').replace('}', '}}')
 
-        try:
-            prompt_string = prompt.TESTING_ARTIFACT_PROMPT_STRING.format(
-                user_stories=user_stories_for_prompt,
-                development_artifact=development_artifact_for_prompt
-            )
-            sys_prompt_content = prompt.TESTING_ARTIFACT_SYS_PROMPT.format(
-                project_name=project_name_for_prompt
-            )
-            messages = [
-                SystemMessage(content=sys_prompt_content),
-                HumanMessage(content=prompt_string)
-            ]
-            response = self.llm.invoke(messages)
-            state.testing_artifact = response.content if hasattr(response, 'content') else str(response)
-            return {"testing_artifact": state.testing_artifact}
-        except KeyError as ke:
-            error_msg = f"KeyError during TESTING_ARTIFACT prompt formatting: {str(ke)}."
-            logger.error(error_msg)
-            state.testing_artifact = error_msg
-            return {"testing_artifact": state.testing_artifact}
-        except Exception as e:
-            logger.error(f"Error generating testing artifacts: {e}")
-            state.testing_artifact = f"Error generating testing artifacts: {str(e)}"
-            return {"testing_artifact": state.testing_artifact}
+        if feedback := state.get_last_feedback_for_stage(SDLCStages.TESTING):
+            feedback_for_prompt = str(feedback).replace('{', '{{').replace('}', '}}')
+            logger.info(f"Feedback for testing artifacts: {feedback_for_prompt[:200]}...")  # Log a snippet
+            try:
+                prompt_string = prompt.TESTING_ARTIFACT_FEEDBACK_PROMPT_STRING.format(
+                    user_stories=user_stories_for_prompt,
+                    development_artifact=development_artifact_for_prompt,
+                    feedback=feedback_for_prompt
+                )
+                sys_prompt_content = prompt.TESTING_ARTIFACT_FEEDBACK_SYS_PROMPT.format(
+                    project_name=project_name_for_prompt,
+                    feedback=feedback_for_prompt
+                )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string)
+                ]
+                response = self.llm.invoke(messages)
+                state.testing_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"testing_artifact": state.testing_artifact}
+            except KeyError as ke:
+                error_msg = f"KeyError during TESTING_ARTIFACT_FEEDBACK prompt formatting: {str(ke)}."
+                logger.error(error_msg)
+                logger.error(f"User stories (snippet): {user_stories_for_prompt[:200]}")
+                logger.error(f"Development artifact (snippet): {development_artifact_for_prompt[:200]}")
+                state.testing_artifact = error_msg
+                return {"testing_artifact": state.testing_artifact}
+            except Exception as e:
+                error_msg = f"Error generating testing artifacts with feedback: {type(e).__name__} - {str(e)}"
+                state.testing_artifact = error_msg
+                logger.error(f"{error_msg}, Input User Stories (snippet): {user_stories_for_prompt[:200]}...")
+                return {"testing_artifact": state.testing_artifact}
+         
+         # No feedback case
+        else:
+            
+            try:
+                prompt_string = prompt.TESTING_ARTIFACT_PROMPT_STRING.format(
+                    user_stories=user_stories_for_prompt,
+                    development_artifact=development_artifact_for_prompt
+                )
+                sys_prompt_content = prompt.TESTING_ARTIFACT_SYS_PROMPT.format(
+                    project_name=project_name_for_prompt
+                )
+                messages = [
+                    SystemMessage(content=sys_prompt_content),
+                    HumanMessage(content=prompt_string)
+                ]
+                response = self.llm.invoke(messages)
+                state.testing_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"testing_artifact": state.testing_artifact}
+            except KeyError as ke:
+                error_msg = f"KeyError during TESTING_ARTIFACT prompt formatting: {str(ke)}."
+                logger.error(error_msg)
+                state.testing_artifact = error_msg
+                return {"testing_artifact": state.testing_artifact}
+            except Exception as e:
+                logger.error(f"Error generating testing artifacts: {e}")
+                state.testing_artifact = f"Error generating testing artifacts: {str(e)}"
+                return {"testing_artifact": state.testing_artifact}
     
     @log_entry_exit
     def deployment_artifact(self, state: State) -> dict:
