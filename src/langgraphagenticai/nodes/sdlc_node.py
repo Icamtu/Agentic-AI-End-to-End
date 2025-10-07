@@ -281,12 +281,12 @@ class SdlcNode:
         else: 
 
             try:
-                prompt_string = prompt.DEVELOPMENT_ARTIFACT_PROMPT_STRING.format(
+                prompt_string = prompt.DEVELOPMENT_ARTIFACT_NO_FEEDBACK_PROMPT_STRING.format(
                     design_documents=design_documents_for_prompt,
                     project_name=project_name_for_prompt
                     
                 )
-                sys_prompt_content = prompt.DEVELOPMENT_ARTIFACT_SYS_PROMPT.format(
+                sys_prompt_content = prompt.DEVELOPMENT_ARTIFACT_NO_FEEDBACK_SYS_PROMPT.format(
                     project_name=project_name_for_prompt
                 )
                 messages = [
@@ -358,11 +358,11 @@ class SdlcNode:
         else:
             
             try:
-                prompt_string = prompt.TESTING_ARTIFACT_PROMPT_STRING.format(
+                prompt_string = prompt.TESTING_ARTIFACT_NO_FEEDBACK_PROMPT_STRING.format(
                     user_stories=user_stories_for_prompt,
                     development_artifact=development_artifact_for_prompt
                 )
-                sys_prompt_content = prompt.TESTING_ARTIFACT_SYS_PROMPT.format(
+                sys_prompt_content = prompt.TESTING_ARTIFACT_NO_FEEDBACK_SYS_PROMPT.format(
                     project_name=project_name_for_prompt
                 )
                 messages = [
@@ -395,55 +395,80 @@ class SdlcNode:
         testing_artifact_for_prompt = str(state.testing_artifact).replace('{', '{{').replace('}', '}}')
         project_name_val = state.project_name or 'N/A'
         project_name_for_prompt = str(project_name_val).replace('{', '{{').replace('}', '}}')
-        
-        try:
-            # --- IMPORTANT: Review prompt.DEPLOYMENT_ARTIFACT_PROMPT_STRING ---
-            # It currently has .format(state=state). This is unusual.
-            # It should likely be .format(testing_artifact=testing_artifact_for_prompt, project_name=project_name_for_prompt)
-            # or similar, depending on its actual placeholders.
-            # For now, I'll assume it expects 'testing_artifact' and 'project_name' as keys.
-            # You MUST adjust this if your prompt uses different placeholder names.
-            
-            # Tentative formatting based on common patterns, ADJUST IF YOUR PROMPT IS DIFFERENT
+
+        if feedback := state.get_last_feedback_for_stage(SDLCStages.DEPLOYMENT):
+            feedback_for_prompt = str(feedback).replace('{', '{{').replace('}', '}}')
+            logger.info(f"Feedback for deployment artifacts: {feedback_for_prompt[:200]}...")  # Log a snippet
             try:
-                prompt_string_content = prompt.DEPLOYMENT_ARTIFACT_PROMPT_STRING.format(
-                    testing_artifact=testing_artifact_for_prompt 
-                    # Add other fields from 'state' if your prompt actually uses them like {state.project_name}
+                prompt_string_content = prompt.DEPLOYMENT_ARTIFACT_FEEDBACK_PROMPT_STRING.format(
+                    testing_artifact=testing_artifact_for_prompt,
+                    feedback=feedback_for_prompt
                 )
-                # Assuming DEPLOYMENT_ARTIFACT_SYS_PROMPT expects project_name
-                sys_prompt_content = prompt.DEPLOYMENT_ARTIFACT_SYS_PROMPT.format(
-                    project_name=project_name_for_prompt
+                sys_prompt_content = prompt.DEPLOYMENT_ARTIFACT_FEEDBACK_SYS_PROMPT.format(
+                    project_name=project_name_for_prompt,
+                    feedback=feedback_for_prompt
                 )
+                messages = [
+                    SystemMessage(content=sys_prompt_content), 
+                    HumanMessage(content=prompt_string_content)
+                ]
+                response = self.llm.invoke(messages)
+                state.deployment_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"deployment_artifact": state.deployment_artifact}
             except KeyError as ke:
-                 # Fallback if the prompt string uses {state.testing_artifact} directly (less common for general prompts)
-                if 'state.testing_artifact' in str(ke): # Check if the error is about 'state.testing_artifact'
-                    prompt_string_content = prompt.DEPLOYMENT_ARTIFACT_PROMPT_STRING.format(
-                        state=state # Pass the whole state object if the prompt needs it this way
+                error_msg = f"KeyError during DEPLOYMENT_ARTIFACT_FEEDBACK prompt formatting: {str(ke)}. Review prompt placeholders."
+                logger.error(error_msg)
+                logger.error(f"Prompt string might be: {prompt.DEPLOYMENT_ARTIFACT_FEEDBACK_PROMPT_STRING}")
+                state.deployment_artifact = error_msg
+                return {"deployment_artifact": state.deployment_artifact}
+            except Exception as e:
+                logger.error(f"Error generating deployment artifacts with feedback: {e}")
+                state.deployment_artifact = f"Error generating deployment artifacts: {str(e)}"
+                return {"deployment_artifact": state.deployment_artifact}
+        
+        else:
+
+            try:
+                
+                try:
+                    prompt_string_content = prompt.DEPLOYMENT_ARTIFACT_NO_FEEDBACK_PROMPT_STRING.format(
+                        testing_artifact=testing_artifact_for_prompt 
+                        
                     )
-                    sys_prompt_content = prompt.DEPLOYMENT_ARTIFACT_SYS_PROMPT.format(
-                        project_name=project_name_for_prompt # This part is likely fine
+                    
+                    sys_prompt_content = prompt.DEPLOYMENT_ARTIFACT_NO_FEEDBACK_SYS_PROMPT.format(
+                        project_name=project_name_for_prompt
                     )
-                else: # Re-raise if it's a different KeyError
-                    raise ke
+                except KeyError as ke:
+                    # Fallback if the prompt string uses {state.testing_artifact} directly (less common for general prompts)
+                    if 'state.testing_artifact' in str(ke): # Check if the error is about 'state.testing_artifact'
+                        prompt_string_content = prompt.DEPLOYMENT_ARTIFACT_NO_FEEDBACK_PROMPT_STRING.format(
+                            state=state # Pass the whole state object if the prompt needs it this way
+                        )
+                        sys_prompt_content = prompt.DEPLOYMENT_ARTIFACT_NO_FEEDBACK_SYS_PROMPT.format(
+                            project_name=project_name_for_prompt # This part is likely fine
+                        )
+                    else: # Re-raise if it's a different KeyError
+                        raise ke
 
 
-            messages = [
-                SystemMessage(content=sys_prompt_content), 
-                HumanMessage(content=prompt_string_content)
-            ]
-            response = self.llm.invoke(messages)
-            state.deployment_artifact = response.content if hasattr(response, 'content') else str(response)
-            return {"deployment_artifact": state.deployment_artifact}
-        except KeyError as ke:
-            error_msg = f"KeyError during DEPLOYMENT_ARTIFACT prompt formatting: {str(ke)}. Review prompt placeholders."
-            logger.error(error_msg)
-            logger.error(f"Prompt string might be: {prompt.DEPLOYMENT_ARTIFACT_PROMPT_STRING}")
-            state.deployment_artifact = error_msg
-            return {"deployment_artifact": state.deployment_artifact}
-        except Exception as e:
-            logger.error(f"Error generating deployment artifacts: {e}")
-            state.deployment_artifact = f"Error generating deployment artifacts: {str(e)}"
-            return {"deployment_artifact": state.deployment_artifact}
+                messages = [
+                    SystemMessage(content=sys_prompt_content), 
+                    HumanMessage(content=prompt_string_content)
+                ]
+                response = self.llm.invoke(messages)
+                state.deployment_artifact = response.content if hasattr(response, 'content') else str(response)
+                return {"deployment_artifact": state.deployment_artifact}
+            except KeyError as ke:
+                error_msg = f"KeyError during DEPLOYMENT_ARTIFACT prompt formatting: {str(ke)}. Review prompt placeholders."
+                logger.error(error_msg)
+                logger.error(f"Prompt string might be: {prompt.DEPLOYMENT_ARTIFACT_NO_FEEDBACK_PROMPT_STRING}")
+                state.deployment_artifact = error_msg
+                return {"deployment_artifact": state.deployment_artifact}
+            except Exception as e:
+                logger.error(f"Error generating deployment artifacts: {e}")
+                state.deployment_artifact = f"Error generating deployment artifacts: {str(e)}"
+                return {"deployment_artifact": state.deployment_artifact}
             
     @log_entry_exit
     def process_feedback(self, state: State) -> dict:
@@ -479,6 +504,9 @@ class SdlcNode:
     def feedback_route(self, state: State) -> str:
         """Routes based on the feedback decision stored in the state."""
         logger.info(f"Entering feedback_route with decision: {state.feedback_decision}")
+        logger.info(f"Current stage: {state.current_stage}")
+        logger.info(f"Session state development_artifact_approved: {st.session_state.get('development_artifact_approved')}")
+        logger.info(f"Session state sdlc_stage: {st.session_state.get('sdlc_stage')}")
 
         if not isinstance(state, State):
             logger.error(f"Invalid state type: {type(state)}. Routing to reject.")
